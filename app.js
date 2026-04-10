@@ -1,0 +1,678 @@
+'use strict'
+
+// ============================================================
+// WORKOUT DEFINITIONS
+// ============================================================
+const W = {
+  elliptical: { label: '椭圆机', tag: 'Zone 2', detail: '20分钟 · 100–110 bpm', icon: '◯', cls: 'w-green' },
+  pt:         { label: '私教力量', tag: '', detail: '60分钟', icon: '◆', cls: 'w-dark' },
+  yoga:       { label: '瑜伽拉伸', tag: '', detail: '20–30分钟', icon: '◇', cls: 'w-sage' },
+  free:       { label: '自选', tag: '', detail: '散步 / 瑜伽 均可', icon: '∿', cls: 'w-muted' },
+  rest:       { label: '休息', tag: '', detail: '', icon: '—', cls: 'w-none' },
+}
+
+const DAYS   = ['周一','周二','周三','周四','周五','周六','周日']
+const DEFAULT_PLAN = ['elliptical','pt','yoga','pt','elliptical','free','rest']
+const PROTEIN_GOAL = 120
+
+// ============================================================
+// STATE
+// ============================================================
+let S = {
+  tab: 'week',
+  plan: [...DEFAULT_PLAN],
+  logs: {},       // { 'YYYY-MM-DD': { done, duration, feel, pb, pl, pd, energy, notes } }
+  weights: [],    // [{ date, v }]
+  measures: [],   // [{ date, waist, hip }]
+  startWeight: 76,
+  targetWeight: 71,
+  selected: null, // selected day index for tap-swap
+}
+
+function save() {
+  const { tab, selected, ...data } = S
+  localStorage.setItem('ft_v1', JSON.stringify(data))
+}
+
+function load() {
+  try {
+    const raw = localStorage.getItem('ft_v1')
+    if (raw) Object.assign(S, JSON.parse(raw))
+  } catch(_) {}
+}
+
+// ============================================================
+// DATE UTILS
+// ============================================================
+function todayStr() {
+  return new Date().toISOString().split('T')[0]
+}
+
+function todayDayIdx() {
+  const d = new Date().getDay()
+  return d === 0 ? 6 : d - 1  // 0=Mon…6=Sun
+}
+
+function weekDates() {
+  const now = new Date()
+  const day = now.getDay()
+  const diff = day === 0 ? -6 : 1 - day
+  const mon = new Date(now)
+  mon.setDate(now.getDate() + diff)
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(mon)
+    d.setDate(mon.getDate() + i)
+    return d.toISOString().split('T')[0]
+  })
+}
+
+function fmtDate(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00')
+  return `${d.getMonth()+1}/${d.getDate()}`
+}
+
+function greeting() {
+  const h = new Date().getHours()
+  if (h < 10) return '早上好'
+  if (h < 12) return '上午好'
+  if (h < 14) return '午安'
+  if (h < 18) return '下午好'
+  return '晚上好'
+}
+
+// ============================================================
+// RENDER
+// ============================================================
+function render() {
+  document.querySelectorAll('.nav-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.tab === S.tab)
+  )
+  const el = document.getElementById('content')
+  if (S.tab === 'week')   el.innerHTML = renderWeek()
+  if (S.tab === 'today')  el.innerHTML = renderToday()
+  if (S.tab === 'data')   el.innerHTML = renderData()
+  if (S.tab === 'report') el.innerHTML = renderReport()
+  bindEvents()
+}
+
+// ── WEEK ─────────────────────────────────────────
+function renderWeek() {
+  const dates = weekDates()
+  const todayIdx = todayDayIdx()
+
+  const cards = S.plan.map((wt, i) => {
+    const w = W[wt]
+    const log = S.logs[dates[i]]
+    const isDone    = log?.done === 'done'
+    const isPartial = log?.done === 'partial'
+    const isToday   = i === todayIdx
+    const isSel     = S.selected === i
+
+    return `
+      <div class="day-card ${isToday ? 'is-today' : ''} ${isSel ? 'is-selected' : ''}"
+           data-day="${i}" draggable="true">
+        <div class="day-label">${DAYS[i]}</div>
+        <div class="day-date">${fmtDate(dates[i])}</div>
+        <div class="workout-pill ${w.cls}">
+          <div class="w-icon">${w.icon}</div>
+          <div class="w-name">${w.label}</div>
+          ${w.tag    ? `<div class="w-tag">${w.tag}</div>` : ''}
+          ${w.detail ? `<div class="w-detail">${w.detail}</div>` : ''}
+        </div>
+        ${isDone    ? '<div class="done-badge">✓</div>' : ''}
+        ${isPartial ? '<div class="done-badge partial">⋯</div>' : ''}
+      </div>`
+  }).join('')
+
+  const swapHint = S.selected !== null
+    ? `<div class="swap-hint">已选中 ${DAYS[S.selected]}，点击另一天完成交换</div>`
+    : ''
+
+  return `
+    <div class="view-week">
+      <div class="view-header">
+        <h2>本周计划</h2>
+        <p class="hint">长按拖拽，或点击选中后再点另一天交换</p>
+      </div>
+      <div class="week-scroll">
+        <div class="week-grid" id="weekGrid">${cards}</div>
+      </div>
+      ${swapHint}
+    </div>`
+}
+
+// ── TODAY ─────────────────────────────────────────
+function renderToday() {
+  const idx    = todayDayIdx()
+  const wt     = S.plan[idx]
+  const w      = W[wt]
+  const date   = todayStr()
+  const log    = S.logs[date] || {}
+  const total  = (log.pb||0) + (log.pl||0) + (log.pd||0)
+  const pct    = Math.min(100, Math.round(total / PROTEIN_GOAL * 100))
+
+  const checkinBlock = wt === 'rest' ? `
+    <div class="card rest-note">
+      <div class="rest-icon">—</div>
+      <p>今天好好休息。<br>肌肉在休息时生长。</p>
+    </div>
+  ` : `
+    <div class="card">
+      <div class="card-label">训练打卡</div>
+      <div class="done-buttons">
+        <button class="done-btn ${log.done==='done'    ? 'active':''}" data-done="done">完成 ✓</button>
+        <button class="done-btn ${log.done==='partial' ? 'active':''}" data-done="partial">部分 ⋯</button>
+        <button class="done-btn ${log.done==='skip'    ? 'active':''}" data-done="skip">跳过 ×</button>
+      </div>
+      ${(log.done==='done'||log.done==='partial') ? `
+        <div class="checkin-fields">
+          <div class="field-row">
+            <label>实际时长</label>
+            <div class="input-with-unit">
+              <input id="duration" type="number" value="${log.duration||''}" placeholder="分钟" min="1" max="180">
+              <span class="unit">分钟</span>
+            </div>
+          </div>
+          <div class="field-row">
+            <label>感受</label>
+            <div class="feel-buttons">
+              <button class="feel-btn ${log.feel==='easy'  ?'active':''}" data-feel="easy">轻松</button>
+              <button class="feel-btn ${log.feel==='ok'    ?'active':''}" data-feel="ok">正常</button>
+              <button class="feel-btn ${log.feel==='hard'  ?'active':''}" data-feel="hard">很累</button>
+            </div>
+          </div>
+          <div class="field-col">
+            <label>训练备注 <span class="optional">可选</span></label>
+            <textarea id="workoutNotes" placeholder="心率变化、某个动作的感受、哪里酸……">${log.workout_notes||''}</textarea>
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  `
+
+  return `
+    <div class="view-today">
+      <div class="today-header">
+        <div class="greeting">${greeting()}</div>
+        <div class="today-date">${fmtDate(date)} · ${DAYS[idx]}</div>
+      </div>
+
+      <div class="today-cols">
+        <div class="today-col">
+          <div class="card">
+            <div class="card-label">今日训练</div>
+            <div class="workout-display ${w.cls}">
+              <div class="w-icon-lg">${w.icon}</div>
+              <div>
+                <div class="w-name-lg">${w.label}</div>
+                ${w.tag    ? `<div class="w-tag-lg">${w.tag}</div>` : ''}
+                ${w.detail ? `<div class="w-detail-lg">${w.detail}</div>` : ''}
+              </div>
+            </div>
+          </div>
+          ${checkinBlock}
+        </div>
+
+        <div class="today-col">
+          <div class="card">
+            <div class="card-label">蛋白质</div>
+            <div class="protein-bar-wrap">
+              <div class="protein-bar">
+                <div class="protein-fill" id="proteinFill" style="width:${pct}%"></div>
+              </div>
+              <div class="protein-nums" id="proteinNums">${total}g <span class="muted">/ ${PROTEIN_GOAL}g</span></div>
+            </div>
+            <div class="protein-meals">
+              ${mealRow('早餐','pb',log.pb)}
+              ${mealRow('午餐','pl',log.pl)}
+              ${mealRow('晚餐','pd',log.pd)}
+            </div>
+            <div class="ref-toggle" id="refToggle">常见食物参考 ▾</div>
+            <div class="ref-panel hidden" id="refPanel">
+              <div class="ref-grid">
+                ${[
+                  ['鸡蛋 1个','6g'],['纳豆 50g','8g'],
+                  ['三文鱼 100g','22g'],['牛肉 100g','26g'],
+                  ['猪肉 100g','20g'],['鸡胸肉 100g','31g'],
+                  ['希腊酸奶 150g','15g'],['蛋白粉 1勺','22g'],
+                  ['豆腐 100g','8g'],['牛奶 200ml','6g'],
+                ].map(([f,g]) => `<div class="ref-item"><span>${f}</span><b>${g}</b></div>`).join('')}
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-label">今日能量</div>
+            <div class="energy-buttons">
+              ${[1,2,3,4,5].map(v=>`
+                <button class="energy-btn ${log.energy===v?'active':''}" data-energy="${v}">${v}</button>
+              `).join('')}
+            </div>
+            <div class="energy-labels"><span>很低</span><span>很高</span></div>
+          </div>
+
+          <div class="card">
+            <div class="card-label">今日备注 <span class="optional">可选</span></div>
+            <textarea id="notes" placeholder="饮食细节、情绪、其他……">${log.notes||''}</textarea>
+          </div>
+
+          <button class="save-btn" id="saveBtn">保存打卡</button>
+        </div>
+      </div>
+    </div>`
+}
+
+function mealRow(label, key, val) {
+  return `
+    <div class="meal-row">
+      <span class="meal-label">${label}</span>
+      <input class="meal-input" data-meal="${key}" type="number" value="${val||''}" placeholder="0" min="0" max="300">
+      <span class="g-label">g</span>
+    </div>`
+}
+
+// ── DATA ──────────────────────────────────────────
+function renderData() {
+  return `
+    <div class="view-data">
+      <div class="view-header"><h2>数据</h2></div>
+
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-val">${calcStreak()}</div>
+          <div class="stat-label">连续打卡天</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val">${calcRate()}%</div>
+          <div class="stat-label">本月完成率</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val">${calcAvgProtein()}g</div>
+          <div class="stat-label">平均蛋白质</div>
+        </div>
+      </div>
+
+      <div class="data-cols">
+        <div class="card">
+          <div class="card-label">体重 kg</div>
+          <div class="input-row">
+            <input id="weightInput" type="number" placeholder="今日体重" step="0.1" min="30" max="200">
+            <button id="addWeight">记录</button>
+          </div>
+          ${renderWeightChart()}
+        </div>
+
+        <div class="card">
+          <div class="card-label">围度 cm</div>
+          <div class="input-row">
+            <input id="waistInput" type="number" placeholder="腰围" step="0.5">
+            <input id="hipInput"   type="number" placeholder="臀围" step="0.5">
+            <button id="addMeasure">记录</button>
+          </div>
+          ${renderMeasureTable()}
+        </div>
+      </div>
+    </div>`
+}
+
+function renderWeightChart() {
+  if (!S.weights.length) return '<div class="empty-state">开始记录体重，看到趋势变化</div>'
+  const sorted = [...S.weights].sort((a,b)=>a.date.localeCompare(b.date)).slice(-16)
+  const vals = sorted.map(w=>w.v)
+  const lo = Math.min(...vals) - 0.5, hi = Math.max(...vals) + 0.5
+  const CW = 300, CH = 90
+  const pts = sorted.map((w,i) => {
+    const x = sorted.length<2 ? CW/2 : (i/(sorted.length-1))*CW
+    const y = CH - ((w.v-lo)/(hi-lo))*CH
+    return `${x.toFixed(1)},${y.toFixed(1)}`
+  }).join(' ')
+  const circles = sorted.map((w,i) => {
+    const x = sorted.length<2 ? CW/2 : (i/(sorted.length-1))*CW
+    const y = CH - ((w.v-lo)/(hi-lo))*CH
+    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="var(--green)"/>`
+  }).join('')
+  const last = sorted[sorted.length-1]
+  return `
+    <div class="weight-chart">
+      <svg viewBox="0 0 ${CW} ${CH}" preserveAspectRatio="none">
+        <polyline points="${pts}" fill="none" stroke="var(--green)" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round"/>
+        ${circles}
+      </svg>
+      <div class="weight-latest">最新：${last.v} kg · ${fmtDate(last.date)}</div>
+    </div>`
+}
+
+function renderMeasureTable() {
+  if (!S.measures.length) return '<div class="empty-state">记录腰臀围变化</div>'
+  const rows = [...S.measures].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6)
+  return `
+    <table class="measure-table">
+      <thead><tr><th>日期</th><th>腰围</th><th>臀围</th></tr></thead>
+      <tbody>
+        ${rows.map(m=>`
+          <tr>
+            <td>${fmtDate(m.date)}</td>
+            <td>${m.waist} cm</td>
+            <td>${m.hip} cm</td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`
+}
+
+// ── REPORT ────────────────────────────────────────
+function renderReport() {
+  return `
+    <div class="view-report">
+      <div class="view-header"><h2>周报告</h2></div>
+      <p class="report-intro">复制后粘贴给 Claude，获取本周评估和下周计划建议。</p>
+      <div class="report-box"><pre id="reportText">${buildReport()}</pre></div>
+      <button class="copy-btn" id="copyBtn">复制报告</button>
+    </div>`
+}
+
+function buildReport() {
+  const dates = weekDates()
+  const feelMap = { easy:'轻松', ok:'正常', hard:'很累' }
+  const lines = [
+    '=== 本周减脂训练报告 ===',
+    '',
+    `基本信息：33岁，身高169cm，起始体重76kg，目标71kg`,
+    `目标：减脂增肌（体重不变腰围缩小也算成功）`,
+    `每日蛋白质目标：120g`,
+    '',
+    '【本周训练】',
+  ]
+
+  dates.forEach((date, i) => {
+    const wt  = S.plan[i]
+    const w   = W[wt]
+    const log = S.logs[date] || {}
+    const status =
+      log.done==='done'    ? '✓ 完成' :
+      log.done==='partial' ? '⋯ 部分' :
+      log.done==='skip'    ? '× 跳过' : '— 未记录'
+    const extra = (log.done==='done'||log.done==='partial') && log.duration
+      ? `  ${log.duration}分钟 · 感受：${feelMap[log.feel]||'未填'}`
+      : ''
+    lines.push(`${DAYS[i]} ${fmtDate(date)}  ${w.label}  ${status}${extra}`)
+  })
+
+  lines.push('', '【蛋白质摄入（g）】')
+  let hasProtein = false
+  dates.forEach((date, i) => {
+    const log = S.logs[date]
+    if (!log) return
+    const t = (log.pb||0)+(log.pl||0)+(log.pd||0)
+    if (t > 0) {
+      lines.push(`${DAYS[i]}：${t}g  早${log.pb||0} / 午${log.pl||0} / 晚${log.pd||0}`)
+      hasProtein = true
+    }
+  })
+  if (!hasProtein) lines.push('（本周暂无记录）')
+
+  lines.push('', '【每日能量（1-5）】')
+  let hasEnergy = false
+  dates.forEach((date, i) => {
+    const log = S.logs[date]
+    if (log?.energy) { lines.push(`${DAYS[i]}：${log.energy}/5`); hasEnergy = true }
+  })
+  if (!hasEnergy) lines.push('（本周暂无记录）')
+
+  if (S.weights.length) {
+    const last = [...S.weights].sort((a,b)=>b.date.localeCompare(a.date))[0]
+    lines.push('', `【最新体重】${last.v} kg（${fmtDate(last.date)}）`)
+  }
+  if (S.measures.length) {
+    const last = [...S.measures].sort((a,b)=>b.date.localeCompare(a.date))[0]
+    lines.push(`【最新围度】腰 ${last.waist}cm · 臀 ${last.hip}cm（${fmtDate(last.date)}）`)
+  }
+
+  const notes = dates.map((date,i) => {
+    const n = S.logs[date]?.notes
+    return n?.trim() ? `${DAYS[i]}：${n.trim()}` : null
+  }).filter(Boolean)
+  if (notes.length) { lines.push('', '【备注】', ...notes) }
+
+  lines.push(
+    '', '---',
+    '请根据以上数据：',
+    '1. 评估本周完成情况（训练、蛋白质、能量趋势）',
+    '2. 给出饮食和训练方面的具体建议',
+    '3. 如需调整，给出修改后的下周计划',
+  )
+  return lines.join('\n')
+}
+
+// ============================================================
+// CALCULATIONS
+// ============================================================
+function calcStreak() {
+  let streak = 0
+  const d = new Date()
+  for (let i = 0; i < 90; i++) {
+    const dateStr = d.toISOString().split('T')[0]
+    const idx = d.getDay() === 0 ? 6 : d.getDay() - 1
+    const wt  = S.plan[idx]
+    const log = S.logs[dateStr]
+    if (wt === 'rest') { streak++; d.setDate(d.getDate()-1); continue }
+    if (log?.done === 'done' || log?.done === 'partial') {
+      streak++; d.setDate(d.getDate()-1)
+    } else break
+  }
+  return streak
+}
+
+function calcRate() {
+  const now = new Date()
+  let done = 0, total = 0
+  for (let day = 1; day <= now.getDate(); day++) {
+    const dt  = new Date(now.getFullYear(), now.getMonth(), day)
+    const idx = dt.getDay() === 0 ? 6 : dt.getDay() - 1
+    if (S.plan[idx] === 'rest') continue
+    total++
+    const log = S.logs[dt.toISOString().split('T')[0]]
+    if (log?.done === 'done' || log?.done === 'partial') done++
+  }
+  return total ? Math.round(done/total*100) : 0
+}
+
+function calcAvgProtein() {
+  const entries = Object.values(S.logs).filter(l => (l.pb||l.pl||l.pd))
+  if (!entries.length) return 0
+  return Math.round(entries.reduce((s,l)=>s+(l.pb||0)+(l.pl||0)+(l.pd||0), 0) / entries.length)
+}
+
+// ============================================================
+// EVENTS
+// ============================================================
+function bindEvents() {
+  document.querySelectorAll('.nav-btn').forEach(btn =>
+    btn.addEventListener('click', () => { S.tab = btn.dataset.tab; S.selected = null; render() })
+  )
+  if (S.tab === 'week')   bindWeek()
+  if (S.tab === 'today')  bindToday()
+  if (S.tab === 'data')   bindData()
+  if (S.tab === 'report') bindReport()
+}
+
+// ── WEEK ─────────────────────────────────────────
+let dragSrc = null
+
+function bindWeek() {
+  document.querySelectorAll('.day-card').forEach(card => {
+    // Tap-to-swap (works on all devices)
+    card.addEventListener('click', () => {
+      const idx = parseInt(card.dataset.day)
+      if (S.selected === null) {
+        S.selected = idx; render()
+      } else if (S.selected === idx) {
+        S.selected = null; render()
+      } else {
+        const a = S.selected, b = idx;
+        [S.plan[a], S.plan[b]] = [S.plan[b], S.plan[a]]
+        S.selected = null; save(); render()
+      }
+    })
+
+    // HTML5 drag-and-drop (desktop)
+    card.addEventListener('dragstart', e => {
+      dragSrc = parseInt(card.dataset.day)
+      card.classList.add('dragging')
+      e.dataTransfer.effectAllowed = 'move'
+    })
+    card.addEventListener('dragover', e => {
+      e.preventDefault()
+      document.querySelectorAll('.day-card').forEach(c=>c.classList.remove('drag-over'))
+      card.classList.add('drag-over')
+    })
+    card.addEventListener('drop', e => {
+      e.preventDefault()
+      const tgt = parseInt(card.dataset.day)
+      if (dragSrc !== null && dragSrc !== tgt) {
+        [S.plan[dragSrc], S.plan[tgt]] = [S.plan[tgt], S.plan[dragSrc]]
+        save(); render()
+      }
+    })
+    card.addEventListener('dragend', () => {
+      dragSrc = null
+      document.querySelectorAll('.day-card').forEach(c=>c.classList.remove('dragging','drag-over'))
+    })
+  })
+}
+
+// ── TODAY ─────────────────────────────────────────
+function bindToday() {
+  const date = todayStr()
+
+  // Done buttons
+  document.querySelectorAll('.done-btn').forEach(btn =>
+    btn.addEventListener('click', () => {
+      getLog(date).done = btn.dataset.done; save(); render()
+    })
+  )
+
+  // Feel buttons
+  document.querySelectorAll('.feel-btn').forEach(btn =>
+    btn.addEventListener('click', () => {
+      getLog(date).feel = btn.dataset.feel; save(); render()
+    })
+  )
+
+  // Protein meal inputs — live update bar
+  document.querySelectorAll('.meal-input').forEach(inp =>
+    inp.addEventListener('input', () => {
+      const log = getLog(date)
+      log[inp.dataset.meal] = parseInt(inp.value) || 0
+      const total = (log.pb||0)+(log.pl||0)+(log.pd||0)
+      const pct   = Math.min(100, Math.round(total/PROTEIN_GOAL*100))
+      const fill  = document.getElementById('proteinFill')
+      const nums  = document.getElementById('proteinNums')
+      if (fill) fill.style.width = pct + '%'
+      if (nums) nums.innerHTML = `${total}g <span class="muted">/ ${PROTEIN_GOAL}g</span>`
+    })
+  )
+
+  // Energy buttons
+  document.querySelectorAll('.energy-btn').forEach(btn =>
+    btn.addEventListener('click', () => {
+      getLog(date).energy = parseInt(btn.dataset.energy); save(); render()
+    })
+  )
+
+  // Reference toggle
+  const toggle = document.getElementById('refToggle')
+  const panel  = document.getElementById('refPanel')
+  if (toggle && panel) {
+    toggle.addEventListener('click', () => {
+      panel.classList.toggle('hidden')
+      toggle.textContent = panel.classList.contains('hidden')
+        ? '常见食物参考 ▾' : '常见食物参考 ▴'
+    })
+  }
+
+  // Save button
+  const saveBtn = document.getElementById('saveBtn')
+  if (saveBtn) {
+    saveBtn.addEventListener('click', () => {
+      const log = getLog(date)
+      const dur = document.getElementById('duration')
+      const txt = document.getElementById('notes')
+      const wtn = document.getElementById('workoutNotes')
+      document.querySelectorAll('.meal-input').forEach(inp => {
+        log[inp.dataset.meal] = parseInt(inp.value) || 0
+      })
+      if (dur) log.duration = parseInt(dur.value) || 0
+      if (txt) log.notes = txt.value
+      if (wtn) log.workout_notes = wtn.value
+      save()
+      showToast('已保存 ✓')
+    })
+  }
+}
+
+function getLog(date) {
+  if (!S.logs[date]) S.logs[date] = {}
+  return S.logs[date]
+}
+
+// ── DATA ──────────────────────────────────────────
+function bindData() {
+  const wInput = document.getElementById('weightInput')
+  document.getElementById('addWeight')?.addEventListener('click', () => {
+    const v = parseFloat(wInput?.value)
+    if (!v || v < 30 || v > 200) return
+    S.weights = S.weights.filter(w => w.date !== todayStr())
+    S.weights.push({ date: todayStr(), v })
+    save(); render()
+  })
+
+  const waist = document.getElementById('waistInput')
+  const hip   = document.getElementById('hipInput')
+  document.getElementById('addMeasure')?.addEventListener('click', () => {
+    const w = parseFloat(waist?.value), h = parseFloat(hip?.value)
+    if (!w || !h) return
+    S.measures = S.measures.filter(m => m.date !== todayStr())
+    S.measures.push({ date: todayStr(), waist: w, hip: h })
+    save(); render()
+  })
+}
+
+// ── REPORT ────────────────────────────────────────
+function bindReport() {
+  document.getElementById('copyBtn')?.addEventListener('click', () => {
+    const text = document.getElementById('reportText')?.textContent
+    if (!text) return
+    navigator.clipboard.writeText(text)
+      .then(() => showToast('已复制 ✓'))
+      .catch(() => {
+        // fallback
+        const ta = document.createElement('textarea')
+        ta.value = text
+        document.body.appendChild(ta)
+        ta.select()
+        document.execCommand('copy')
+        ta.remove()
+        showToast('已复制 ✓')
+      })
+  })
+}
+
+// ============================================================
+// TOAST
+// ============================================================
+function showToast(msg) {
+  document.getElementById('toast')?.remove()
+  const t = document.createElement('div')
+  t.id = 'toast'
+  t.textContent = msg
+  document.body.appendChild(t)
+  requestAnimationFrame(() => requestAnimationFrame(() => t.classList.add('show')))
+  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300) }, 2200)
+}
+
+// ============================================================
+// INIT
+// ============================================================
+load()
+render()
