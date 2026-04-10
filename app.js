@@ -181,10 +181,6 @@ function renderToday() {
               <button class="feel-btn ${log.feel==='hard'  ?'active':''}" data-feel="hard">很累</button>
             </div>
           </div>
-          <div class="field-col">
-            <label>训练备注 <span class="optional">可选</span></label>
-            <textarea id="workoutNotes" placeholder="心率变化、某个动作的感受、哪里酸……">${log.workout_notes||''}</textarea>
-          </div>
         </div>
       ` : ''}
     </div>
@@ -223,10 +219,11 @@ function renderToday() {
               <div class="protein-nums" id="proteinNums">${total}g <span class="muted">/ ${PROTEIN_GOAL}g</span></div>
             </div>
             <div class="protein-meals">
-              ${mealRow('早餐','pb',log.pb)}
-              ${mealRow('午餐','pl',log.pl)}
-              ${mealRow('晚餐','pd',log.pd)}
+              ${mealRow('早餐','pb_text','pb',log.pb_text,log.pb)}
+              ${mealRow('午餐','pl_text','pl',log.pl_text,log.pl)}
+              ${mealRow('晚餐','pd_text','pd',log.pd_text,log.pd)}
             </div>
+            <button class="estimate-btn" id="estimateBtn">复制给 Claude 估算蛋白质</button>
             <div class="ref-toggle" id="refToggle">常见食物参考 ▾</div>
             <div class="ref-panel hidden" id="refPanel">
               <div class="ref-grid">
@@ -262,11 +259,18 @@ function renderToday() {
     </div>`
 }
 
-function mealRow(label, key, val) {
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+}
+
+function mealRow(label, textKey, numKey, textVal, numVal) {
   return `
     <div class="meal-row">
       <span class="meal-label">${label}</span>
-      <input class="meal-input" data-meal="${key}" type="number" value="${val||''}" placeholder="0" min="0" max="300">
+      <input class="meal-text" data-meal-text="${textKey}" type="text"
+             value="${esc(textVal)}" placeholder="吃了什么…">
+      <input class="meal-num" data-meal="${numKey}" type="number"
+             value="${numVal||''}" placeholder="g" min="0" max="300">
       <span class="g-label">g</span>
     </div>`
 }
@@ -311,6 +315,16 @@ function renderData() {
           </div>
           ${renderMeasureTable()}
         </div>
+      </div>
+
+      <div class="card backup-card">
+        <div class="card-label">数据备份</div>
+        <div class="backup-row">
+          <button id="exportBtn" class="backup-btn">导出 JSON</button>
+          <label class="backup-btn import-label" for="importFile">导入 JSON</label>
+          <input type="file" id="importFile" accept=".json" style="display:none">
+        </div>
+        <p class="backup-hint">导入会覆盖当前所有数据，建议先导出备份</p>
       </div>
     </div>`
 }
@@ -398,15 +412,21 @@ function buildReport() {
     lines.push(`${DAYS[i]} ${fmtDate(date)}  ${w.label}  ${status}${extra}`)
   })
 
-  lines.push('', '【蛋白质摄入（g）】')
+  lines.push('', '【蛋白质摄入】')
   let hasProtein = false
   dates.forEach((date, i) => {
     const log = S.logs[date]
     if (!log) return
     const t = (log.pb||0)+(log.pl||0)+(log.pd||0)
-    if (t > 0) {
-      lines.push(`${DAYS[i]}：${t}g  早${log.pb||0} / 午${log.pl||0} / 晚${log.pd||0}`)
-      hasProtein = true
+    const hasNum  = t > 0
+    const hasText = log.pb_text || log.pl_text || log.pd_text
+    if (!hasNum && !hasText) return
+    hasProtein = true
+    if (hasNum) lines.push(`${DAYS[i]}：${t}g  早${log.pb||0} / 午${log.pl||0} / 晚${log.pd||0}`)
+    if (hasText) {
+      if (log.pb_text) lines.push(`  早餐食物：${log.pb_text}`)
+      if (log.pl_text) lines.push(`  午餐食物：${log.pl_text}`)
+      if (log.pd_text) lines.push(`  晚餐食物：${log.pd_text}`)
     }
   })
   if (!hasProtein) lines.push('（本周暂无记录）')
@@ -559,8 +579,8 @@ function bindToday() {
     })
   )
 
-  // Protein meal inputs — live update bar
-  document.querySelectorAll('.meal-input').forEach(inp =>
+  // Protein: number inputs — live bar update
+  document.querySelectorAll('.meal-num').forEach(inp =>
     inp.addEventListener('input', () => {
       const log = getLog(date)
       log[inp.dataset.meal] = parseInt(inp.value) || 0
@@ -572,6 +592,34 @@ function bindToday() {
       if (nums) nums.innerHTML = `${total}g <span class="muted">/ ${PROTEIN_GOAL}g</span>`
     })
   )
+
+  // Protein: text inputs — save description
+  document.querySelectorAll('.meal-text').forEach(inp =>
+    inp.addEventListener('input', () => {
+      getLog(date)[inp.dataset.mealText] = inp.value
+    })
+  )
+
+  // Estimate button
+  document.getElementById('estimateBtn')?.addEventListener('click', () => {
+    const log = S.logs[date] || {}
+    const prompt = [
+      '帮我估算今天每餐的蛋白质含量（g），只需给出每餐的克数数字：',
+      `早餐：${log.pb_text || '未填写'}`,
+      `午餐：${log.pl_text || '未填写'}`,
+      `晚餐：${log.pd_text || '未填写'}`,
+      '',
+      '请按格式回复：早餐 Xg，午餐 Xg，晚餐 Xg，合计 Xg',
+    ].join('\n')
+    navigator.clipboard.writeText(prompt)
+      .then(() => showToast('已复制，粘贴给 Claude ✓'))
+      .catch(() => {
+        const ta = document.createElement('textarea')
+        ta.value = prompt; document.body.appendChild(ta); ta.select()
+        document.execCommand('copy'); ta.remove()
+        showToast('已复制，粘贴给 Claude ✓')
+      })
+  })
 
   // Energy buttons
   document.querySelectorAll('.energy-btn').forEach(btn =>
@@ -598,13 +646,14 @@ function bindToday() {
       const log = getLog(date)
       const dur = document.getElementById('duration')
       const txt = document.getElementById('notes')
-      const wtn = document.getElementById('workoutNotes')
-      document.querySelectorAll('.meal-input').forEach(inp => {
+      document.querySelectorAll('.meal-num').forEach(inp => {
         log[inp.dataset.meal] = parseInt(inp.value) || 0
+      })
+      document.querySelectorAll('.meal-text').forEach(inp => {
+        log[inp.dataset.mealText] = inp.value
       })
       if (dur) log.duration = parseInt(dur.value) || 0
       if (txt) log.notes = txt.value
-      if (wtn) log.workout_notes = wtn.value
       save()
       showToast('已保存 ✓')
     })
@@ -635,6 +684,39 @@ function bindData() {
     S.measures = S.measures.filter(m => m.date !== todayStr())
     S.measures.push({ date: todayStr(), waist: w, hip: h })
     save(); render()
+  })
+
+  // Export
+  document.getElementById('exportBtn')?.addEventListener('click', () => {
+    const { tab, selected, ...data } = S
+    const json = JSON.stringify(data, null, 2)
+    const blob = new Blob([json], { type: 'application/json' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href = url
+    a.download = `fitness-backup-${todayStr()}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    showToast('已导出 ✓')
+  })
+
+  // Import
+  document.getElementById('importFile')?.addEventListener('change', e => {
+    const file = e.target.files[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = ev => {
+      try {
+        const data = JSON.parse(ev.target.result)
+        if (!data.plan || !Array.isArray(data.plan)) throw new Error()
+        Object.assign(S, data)
+        save(); render()
+        showToast('数据已导入 ✓')
+      } catch(_) {
+        showToast('格式不正确，导入失败')
+      }
+    }
+    reader.readAsText(file)
   })
 }
 
