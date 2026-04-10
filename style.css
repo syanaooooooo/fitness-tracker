@@ -715,7 +715,7 @@ input[type=number] { -moz-appearance: textfield; }
 @media (min-width: 768px) {
   #app { max-width: 960px; }
 
-  /* Nav to top */
+  /* Nav to top — compact centered, method C */
   .bottom-nav {
     order: -1;
     position: sticky;
@@ -728,17 +728,46 @@ input[type=number] { -moz-appearance: textfield; }
     border-top: none;
     border-bottom: 1px solid var(--border);
     padding: 0;
+    justify-content: center;
+    gap: 0;
+    background: var(--white);
   }
 
   .nav-btn {
+    flex: 0 0 auto;
     flex-direction: row;
-    gap: 8px;
-    padding: 16px 24px;
+    gap: 0;
+    padding: 15px 28px;
     justify-content: center;
+    position: relative;
   }
 
-  .nav-icon { font-size: 14px; }
-  .nav-label { font-size: 13px; }
+  /* separator dots */
+  .nav-btn:not(:last-child)::after {
+    content: '·';
+    position: absolute;
+    right: -2px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--border);
+    font-size: 18px;
+    pointer-events: none;
+  }
+
+  /* hide the character icons, just show text */
+  .nav-icon { display: none; }
+
+  .nav-label {
+    font-size: 14px;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    transition: color 0.15s, font-weight 0.15s;
+  }
+
+  .nav-btn.active .nav-label {
+    color: var(--green);
+    font-weight: 700;
+  }
 
   #content {
     order: 1;
