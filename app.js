@@ -207,6 +207,15 @@ function renderToday() {
             </div>
           </div>
           ${checkinBlock}
+          <div class="card">
+            <div class="card-label">今日能量</div>
+            <div class="energy-buttons">
+              ${[1,2,3,4,5].map(v=>`
+                <button class="energy-btn ${log.energy===v?'active':''}" data-energy="${v}">${v}</button>
+              `).join('')}
+            </div>
+            <div class="energy-labels"><span>很低</span><span>很高</span></div>
+          </div>
         </div>
 
         <div class="today-col">
@@ -236,16 +245,6 @@ function renderToday() {
                 ].map(([f,g]) => `<div class="ref-item"><span>${f}</span><b>${g}</b></div>`).join('')}
               </div>
             </div>
-          </div>
-
-          <div class="card">
-            <div class="card-label">今日能量</div>
-            <div class="energy-buttons">
-              ${[1,2,3,4,5].map(v=>`
-                <button class="energy-btn ${log.energy===v?'active':''}" data-energy="${v}">${v}</button>
-              `).join('')}
-            </div>
-            <div class="energy-labels"><span>很低</span><span>很高</span></div>
           </div>
 
           <div class="card">
