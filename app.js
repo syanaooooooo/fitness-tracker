@@ -14,6 +14,8 @@ const W = {
 const DAYS   = ['周一','周二','周三','周四','周五','周六','周日']
 const DEFAULT_PLAN = ['elliptical','pt','yoga','pt','elliptical','free','rest']
 const PROTEIN_GOAL = 120
+const CARB_GOAL    = 200
+const FAT_GOAL     = 55
 
 // ============================================================
 // STATE
@@ -21,7 +23,7 @@ const PROTEIN_GOAL = 120
 let S = {
   tab: 'week',
   plan: [...DEFAULT_PLAN],
-  logs: {},       // { 'YYYY-MM-DD': { done, duration, feel, pb, pl, pd, energy, notes } }
+  logs: {},       // { 'YYYY-MM-DD': { done, duration, feel, pb/pl/pd, cb/cl/cd, fb/fl/fd, pb_text/pl_text/pd_text, energy, notes, freeNote } }
   weights: [],    // [{ date, v }]
   measures: [],   // [{ date, waist, hip }]
   startWeight: 76,
@@ -182,8 +184,12 @@ function renderToday() {
   const w      = W[wt]
   const date   = todayStr()
   const log    = S.logs[date] || {}
-  const total  = (log.pb||0) + (log.pl||0) + (log.pd||0)
-  const pct    = Math.min(100, Math.round(total / PROTEIN_GOAL * 100))
+  const totalP = (log.pb||0) + (log.pl||0) + (log.pd||0)
+  const totalC = (log.cb||0) + (log.cl||0) + (log.cd||0)
+  const totalF = (log.fb||0) + (log.fl||0) + (log.fd||0)
+  const pctP   = Math.min(100, Math.round(totalP / PROTEIN_GOAL * 100))
+  const pctC   = Math.min(100, Math.round(totalC / CARB_GOAL * 100))
+  const pctF   = Math.min(100, Math.round(totalF / FAT_GOAL * 100))
 
   const checkinBlock = wt === 'rest' ? `
     <div class="card rest-note">
@@ -272,19 +278,30 @@ function renderToday() {
 
         <div class="today-col">
           <div class="card">
-            <div class="card-label">蛋白质</div>
-            <div class="protein-bar-wrap">
-              <div class="protein-bar">
-                <div class="protein-fill" id="proteinFill" style="width:${pct}%"></div>
+            <div class="card-label">三大营养素</div>
+            <div class="macro-bars">
+              <div class="macro-bar-row">
+                <span class="macro-bar-label">蛋白质</span>
+                <div class="macro-bar"><div class="macro-fill macro-fill-p" style="width:${pctP}%"></div></div>
+                <span class="macro-bar-nums">${totalP}<span class="muted">/${PROTEIN_GOAL}g</span></span>
               </div>
-              <div class="protein-nums" id="proteinNums">${total}g <span class="muted">/ ${PROTEIN_GOAL}g</span></div>
+              <div class="macro-bar-row">
+                <span class="macro-bar-label">碳水</span>
+                <div class="macro-bar"><div class="macro-fill macro-fill-c" style="width:${pctC}%"></div></div>
+                <span class="macro-bar-nums">${totalC}<span class="muted">/${CARB_GOAL}g</span></span>
+              </div>
+              <div class="macro-bar-row">
+                <span class="macro-bar-label">脂肪</span>
+                <div class="macro-bar"><div class="macro-fill macro-fill-f" style="width:${pctF}%"></div></div>
+                <span class="macro-bar-nums">${totalF}<span class="muted">/${FAT_GOAL}g</span></span>
+              </div>
             </div>
             <div class="protein-meals">
-              ${mealRow('早餐','pb_text','pb',log.pb_text,log.pb)}
-              ${mealRow('午餐','pl_text','pl',log.pl_text,log.pl)}
-              ${mealRow('晚餐','pd_text','pd',log.pd_text,log.pd)}
+              ${mealRow('早餐','pb_text',log.pb_text,log.pb,log.cb,log.fb)}
+              ${mealRow('午餐','pl_text',log.pl_text,log.pl,log.cl,log.fl)}
+              ${mealRow('晚餐','pd_text',log.pd_text,log.pd,log.cd,log.fd)}
             </div>
-            <button class="estimate-btn" id="estimateBtn">复制给 Claude 估算蛋白质</button>
+            <button class="estimate-btn" id="estimateBtn">复制给 Claude 估算营养素</button>
             <div class="ref-toggle" id="refToggle">常见食物参考 ▾</div>
             <div class="ref-panel hidden" id="refPanel">
               <div class="ref-grid">
@@ -314,15 +331,36 @@ function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
 }
 
-function mealRow(label, textKey, numKey, textVal, numVal) {
+function mealRow(label, textKey, textVal, pVal, cVal, fVal) {
+  // derive per-macro keys from textKey: 'pb_text' → pb/cb/fb, 'pl_text' → pl/cl/fl, 'pd_text' → pd/cd/fd
+  const slot = textKey[1] // 'b', 'l', 'd'
   return `
-    <div class="meal-row">
-      <span class="meal-label">${label}</span>
-      <input class="meal-text" data-meal-text="${textKey}" type="text"
-             value="${esc(textVal)}" placeholder="吃了什么…">
-      <input class="meal-num" data-meal="${numKey}" type="number"
-             value="${numVal||''}" placeholder="g" min="0" max="300">
-      <span class="g-label">g</span>
+    <div class="meal-row-block">
+      <div class="meal-row-top">
+        <span class="meal-label">${label}</span>
+        <input class="meal-text" data-meal-text="${textKey}" type="text"
+               value="${esc(textVal)}" placeholder="吃了什么…">
+      </div>
+      <div class="meal-row-nums">
+        <div class="meal-macro-input">
+          <span class="macro-tag macro-tag-p">蛋白质</span>
+          <input class="meal-num" data-meal="p${slot}" type="number"
+                 value="${pVal||''}" placeholder="0" min="0" max="500">
+          <span class="g-label">g</span>
+        </div>
+        <div class="meal-macro-input">
+          <span class="macro-tag macro-tag-c">碳水</span>
+          <input class="meal-num" data-meal="c${slot}" type="number"
+                 value="${cVal||''}" placeholder="0" min="0" max="500">
+          <span class="g-label">g</span>
+        </div>
+        <div class="meal-macro-input">
+          <span class="macro-tag macro-tag-f">脂肪</span>
+          <input class="meal-num" data-meal="f${slot}" type="number"
+                 value="${fVal||''}" placeholder="0" min="0" max="300">
+          <span class="g-label">g</span>
+        </div>
+      </div>
     </div>`
 }
 
@@ -444,7 +482,7 @@ function buildReport() {
     '',
     `基本信息：33岁，身高169cm，起始体重76kg，目标71kg`,
     `目标：减脂增肌（体重不变腰围缩小也算成功）`,
-    `每日蛋白质目标：120g`,
+    `每日营养素目标：蛋白质120g / 碳水200g / 脂肪55g`,
     '',
     '【本周训练】',
   ]
@@ -463,24 +501,25 @@ function buildReport() {
     lines.push(`${DAYS[i]} ${fmtDate(date)}  ${w.label}  ${status}${extra}`)
   })
 
-  lines.push('', '【蛋白质摄入】')
-  let hasProtein = false
+  lines.push('', '【营养素摄入】目标：蛋白质120g / 碳水200g / 脂肪55g')
+  let hasMacro = false
   dates.forEach((date, i) => {
     const log = S.logs[date]
     if (!log) return
-    const t = (log.pb||0)+(log.pl||0)+(log.pd||0)
-    const hasNum  = t > 0
+    const tP = (log.pb||0)+(log.pl||0)+(log.pd||0)
+    const tC = (log.cb||0)+(log.cl||0)+(log.cd||0)
+    const tF = (log.fb||0)+(log.fl||0)+(log.fd||0)
     const hasText = log.pb_text || log.pl_text || log.pd_text
-    if (!hasNum && !hasText) return
-    hasProtein = true
-    if (hasNum) lines.push(`${DAYS[i]}：${t}g  早${log.pb||0} / 午${log.pl||0} / 晚${log.pd||0}`)
+    if (!tP && !tC && !tF && !hasText) return
+    hasMacro = true
+    if (tP||tC||tF) lines.push(`${DAYS[i]}：蛋白质${tP}g / 碳水${tC}g / 脂肪${tF}g`)
     if (hasText) {
-      if (log.pb_text) lines.push(`  早餐食物：${log.pb_text}`)
-      if (log.pl_text) lines.push(`  午餐食物：${log.pl_text}`)
-      if (log.pd_text) lines.push(`  晚餐食物：${log.pd_text}`)
+      if (log.pb_text) lines.push(`  早餐：${log.pb_text}`)
+      if (log.pl_text) lines.push(`  午餐：${log.pl_text}`)
+      if (log.pd_text) lines.push(`  晚餐：${log.pd_text}`)
     }
   })
-  if (!hasProtein) lines.push('（本周暂无记录）')
+  if (!hasMacro) lines.push('（本周暂无记录）')
 
   lines.push('', '【每日能量（1-5）】')
   let hasEnergy = false

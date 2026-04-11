@@ -498,35 +498,52 @@ body {
 
 .sugg-detail.hidden { display: none; }
 
-/* protein */
-.protein-bar-wrap {
+/* macro bars */
+.macro-bars {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 18px;
 }
 
-.protein-bar {
+.macro-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.macro-bar-label {
+  font-size: 11px;
+  color: var(--ink-light);
+  width: 38px;
+  flex-shrink: 0;
+  letter-spacing: 0.04em;
+  font-family: -apple-system, 'PingFang SC', sans-serif;
+}
+
+.macro-bar {
   flex: 1;
   height: 5px;
   background: var(--bg2);
-  border-radius: 0;
   overflow: hidden;
 }
 
-.protein-fill {
+.macro-fill {
   height: 100%;
-  background: var(--accent);
-  border-radius: 0;
   transition: width 0.35s ease;
 }
 
-.protein-nums {
-  font-size: 15px;
+.macro-fill-p { background: var(--accent); }
+.macro-fill-c { background: #8A9E6E; }
+.macro-fill-f { background: #B8956A; }
+
+.macro-bar-nums {
+  font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
+  width: 72px;
+  text-align: right;
   font-family: -apple-system, 'PingFang SC', sans-serif;
-  letter-spacing: 0.02em;
 }
 
 .protein-meals {
@@ -536,7 +553,17 @@ body {
   margin-bottom: 14px;
 }
 
-.meal-row {
+.meal-row-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.meal-row-block:last-child { border-bottom: none; padding-bottom: 0; }
+
+.meal-row-top {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -552,7 +579,7 @@ body {
 
 .meal-text {
   flex: 1;
-  padding: 9px 10px;
+  padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg);
@@ -564,14 +591,40 @@ body {
 
 .meal-text:focus { outline: none; border-color: var(--accent); }
 
+.meal-row-nums {
+  display: flex;
+  gap: 8px;
+  padding-left: 42px;
+}
+
+.meal-macro-input {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+
+.macro-tag {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  font-family: -apple-system, 'PingFang SC', sans-serif;
+  padding: 2px 5px;
+  border-radius: 2px;
+}
+
+.macro-tag-p { background: #EBF3EE; color: var(--accent); }
+.macro-tag-c { background: #EDF3E8; color: #4A6E30; }
+.macro-tag-f { background: #F5EDE4; color: #7A5030; }
+
 .meal-num {
-  width: 58px;
-  flex-shrink: 0;
-  padding: 9px 6px;
+  flex: 1;
+  min-width: 0;
+  padding: 6px 4px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg);
-  font-size: 13px;
+  font-size: 12px;
   color: var(--ink);
   text-align: center;
   font-family: -apple-system, 'PingFang SC', sans-serif;
@@ -579,7 +632,7 @@ body {
 
 .meal-num:focus { outline: none; border-color: var(--accent); }
 
-.g-label { font-size: 12px; color: var(--ink-light); width: 12px; flex-shrink: 0; }
+.g-label { font-size: 11px; color: var(--ink-light); flex-shrink: 0; }
 
 .estimate-btn {
   width: 100%;
