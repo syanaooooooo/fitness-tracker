@@ -304,10 +304,10 @@ function renderToday() {
               </div>
             </div>
             <div class="protein-meals">
-              ${mealRow('早餐','pb_text',log.pb_text,log.pb,log.cb,log.fb)}
-              ${mealRow('午餐','pl_text',log.pl_text,log.pl,log.cl,log.fl)}
-              ${mealRow('晚餐','pd_text',log.pd_text,log.pd,log.cd,log.fd)}
-              ${mealRow('加餐','ps_text',log.ps_text,log.ps,log.cs,log.fs)}
+              ${mealRow('早餐','pb_text',log.pb_text,log.pb,log.cb,log.fb,log.pb_detail)}
+              ${mealRow('午餐','pl_text',log.pl_text,log.pl,log.cl,log.fl,log.pl_detail)}
+              ${mealRow('晚餐','pd_text',log.pd_text,log.pd,log.cd,log.fd,log.pd_detail)}
+              ${mealRow('加餐','ps_text',log.ps_text,log.ps,log.cs,log.fs,log.ps_detail)}
             </div>
             <div class="ref-toggle" id="refToggle">常见食物参考 ▾</div>
             <div class="ref-panel hidden" id="refPanel">
@@ -338,9 +338,29 @@ function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
 }
 
-function mealRow(label, textKey, textVal, pVal, cVal, fVal) {
-  // derive per-macro keys from textKey: 'pb_text'→pb/cb/fb, 'pl_text'→pl/cl/fl, 'pd_text'→pd/cd/fd, 'ps_text'→ps/cs/fs
+function mealRow(label, textKey, textVal, pVal, cVal, fVal, detailJson) {
+  // derive per-macro keys: 'pb_text'→pb/cb/fb, 'pl_text'→pl/cl/fl, 'pd_text'→pd/cd/fd, 'ps_text'→ps/cs/fs
   const slot = textKey[1] // 'b', 'l', 'd', 's'
+  const detailKey = textKey.replace('_text', '_detail')
+
+  let detailBlock = ''
+  if (detailJson) {
+    try {
+      const rows = JSON.parse(detailJson)
+      const rowsHtml = rows.map(r =>
+        `<tr><td>${r.name}</td><td>${r.p}g</td><td>${r.c}g</td><td>${r.f}g</td></tr>`
+      ).join('')
+      detailBlock = `
+        <div class="meal-detail-toggle" data-detail-key="${detailKey}">明细 ▾</div>
+        <div class="meal-detail-panel hidden" id="detail-${detailKey}">
+          <table class="detail-table">
+            <thead><tr><th>食物</th><th>蛋白质</th><th>碳水</th><th>脂肪</th></tr></thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+        </div>`
+    } catch(e) {}
+  }
+
   return `
     <div class="meal-row-block">
       <div class="meal-row-top">
@@ -368,6 +388,7 @@ function mealRow(label, textKey, textVal, pVal, cVal, fVal) {
           <span class="g-label">g</span>
         </div>
       </div>
+      ${detailBlock}
     </div>`
 }
 
@@ -734,6 +755,18 @@ function bindToday() {
       getLog(date).energy = parseInt(btn.dataset.energy); save(); render()
     })
   )
+
+  // Meal detail toggles
+  document.querySelectorAll('.meal-detail-toggle').forEach(tog => {
+    tog.addEventListener('click', () => {
+      const key = tog.dataset.detailKey
+      const panel = document.getElementById('detail-' + key)
+      if (!panel) return
+      const open = !panel.classList.contains('hidden')
+      panel.classList.toggle('hidden', open)
+      tog.textContent = open ? '明细 ▾' : '明细 ▴'
+    })
+  })
 
   // Suggestion chips
   document.querySelectorAll('.sugg-chip').forEach(chip => {

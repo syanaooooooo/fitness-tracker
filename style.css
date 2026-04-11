@@ -640,6 +640,48 @@ body {
 
 .g-label { font-size: 11px; color: var(--ink-light); flex-shrink: 0; }
 
+/* meal detail */
+.meal-detail-toggle {
+  font-size: 10px;
+  color: var(--ink-light);
+  cursor: pointer;
+  letter-spacing: 0.08em;
+  padding-left: 42px;
+  margin-top: 2px;
+  user-select: none;
+  font-family: -apple-system, 'PingFang SC', sans-serif;
+  transition: color 0.15s;
+}
+.meal-detail-toggle:hover { color: var(--accent); }
+
+.meal-detail-panel {
+  padding-left: 42px;
+  margin-top: 6px;
+}
+.meal-detail-panel.hidden { display: none; }
+
+.detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  font-family: -apple-system, 'PingFang SC', sans-serif;
+}
+.detail-table th {
+  text-align: left;
+  color: var(--ink-light);
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  padding: 4px 6px 4px 0;
+  border-bottom: 1px solid var(--border-light);
+}
+.detail-table td {
+  padding: 4px 6px 4px 0;
+  color: var(--ink-mid);
+  border-bottom: 1px solid var(--bg2);
+}
+.detail-table td:first-child { color: var(--ink); }
+.detail-table tr:last-child td { border-bottom: none; }
+
 .estimate-btn {
   width: 100%;
   padding: 10px;
