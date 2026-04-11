@@ -150,6 +150,31 @@ function renderWeek() {
     </div>`
 }
 
+// ── FREE SUGGESTIONS ─────────────────────────────
+function freeSuggestions() {
+  const ptCount   = S.plan.filter(x => x === 'pt').length
+  const cardioCount = S.plan.filter(x => x === 'elliptical').length
+  const stretchCount = S.plan.filter(x => x === 'yoga').length
+  const todayIdx  = todayDayIdx()
+  const prevType  = todayIdx > 0 ? S.plan[todayIdx - 1] : null
+  const nextType  = todayIdx < 6 ? S.plan[todayIdx + 1] : null
+  const heavyNeighbor = prevType === 'pt' || nextType === 'pt'
+
+  const all = [
+    { label: '核心训练',    detail: '平板支撑 3×45s · 卷腹 3×15 · 侧平板 3×30s',    cond: ptCount >= 2 },
+    { label: '臀腿哑铃',    detail: '深蹲 3×12 · 罗马尼亚硬拉 3×10 · 臀桥 3×15',    cond: ptCount >= 1 && cardioCount >= 1 },
+    { label: '肩臂哑铃',    detail: '肩推 3×12 · 侧平举 3×15 · 弯举 3×12',           cond: ptCount >= 1 },
+    { label: '额外有氧',    detail: '椭圆机 20 分钟 · 保持 100–110 bpm',              cond: cardioCount < 2 },
+    { label: '主动恢复',    detail: '泡沫轴 10 分钟 · 全身拉伸 15 分钟',              cond: heavyNeighbor || ptCount >= 2 },
+    { label: '快走',        detail: '户外或室内快走 30 分钟',                          cond: stretchCount >= 1 || cardioCount < 2 },
+    { label: '瑜伽',        detail: '跟练视频 20–30 分钟，专注呼吸',                  cond: ptCount >= 2 && stretchCount === 0 },
+  ]
+
+  // pick up to 3 matching, fall back to first 3 if none match
+  const matched = all.filter(s => s.cond)
+  return (matched.length ? matched : all).slice(0, 3)
+}
+
 // ── TODAY ─────────────────────────────────────────
 function renderToday() {
   const idx    = todayDayIdx()
@@ -195,6 +220,23 @@ function renderToday() {
     </div>
   `
 
+  const freeBlock = wt === 'free' ? (() => {
+    const suggs = freeSuggestions()
+    const chips = suggs.map(s =>
+      `<button class="sugg-chip" data-sugg="${esc(s.label)}" data-detail="${esc(s.detail)}">${s.label}</button>`
+    ).join('')
+    return `
+      <div class="sugg-section">
+        <div class="sugg-label">今日建议</div>
+        <div class="sugg-chips">${chips}</div>
+        <div class="sugg-detail hidden" id="suggDetail"></div>
+      </div>
+      <div class="field-col" style="margin-top:12px">
+        <label>今天做什么 <span class="optional">自定义</span></label>
+        <textarea id="freeNote" placeholder="填写或点击上方建议…" style="min-height:60px">${esc(log.freeNote||'')}</textarea>
+      </div>`
+  })() : ''
+
   return `
     <div class="view-today">
       <div class="today-header">
@@ -214,6 +256,7 @@ function renderToday() {
                 ${w.detail ? `<div class="w-detail-lg">${w.detail}</div>` : ''}
               </div>
             </div>
+            ${freeBlock}
           </div>
           ${checkinBlock}
           <div class="card">
@@ -645,6 +688,21 @@ function bindToday() {
     })
   )
 
+  // Suggestion chips
+  document.querySelectorAll('.sugg-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const note = document.getElementById('freeNote')
+      const detail = document.getElementById('suggDetail')
+      if (note) note.value = chip.dataset.sugg
+      if (detail) {
+        detail.textContent = chip.dataset.detail
+        detail.classList.remove('hidden')
+      }
+      document.querySelectorAll('.sugg-chip').forEach(c => c.classList.remove('active'))
+      chip.classList.add('active')
+    })
+  })
+
   // Reference toggle
   const toggle = document.getElementById('refToggle')
   const panel  = document.getElementById('refPanel')
@@ -671,6 +729,8 @@ function bindToday() {
       })
       if (dur) log.duration = parseInt(dur.value) || 0
       if (txt) log.notes = txt.value
+      const fn = document.getElementById('freeNote')
+      if (fn) log.freeNote = fn.value
       save()
       showToast('已保存 ✓')
     })
