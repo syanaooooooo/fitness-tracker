@@ -124,20 +124,29 @@ function renderWeek() {
       </div>`
   }).join('')
 
-  const swapHint = S.selected !== null
-    ? `<div class="swap-hint">已选中 ${DAYS[S.selected]}，点击另一天完成交换</div>`
-    : ''
+  const typeButtons = Object.entries(W).map(([key, w]) => {
+    const isCurrent = S.selected !== null && S.plan[S.selected] === key
+    return `<button class="type-pick-btn ${w.cls} ${isCurrent ? 'is-current' : ''}"
+      data-set-type="${key}">${w.icon} ${w.label}</button>`
+  }).join('')
+
+  const actionPanel = S.selected !== null ? `
+    <div class="action-panel">
+      <div class="action-panel-label">已选中 ${DAYS[S.selected]} · 更换内容</div>
+      <div class="type-pick-row">${typeButtons}</div>
+      <div class="action-panel-hint">或点击另一天完成交换</div>
+    </div>` : ''
 
   return `
     <div class="view-week">
       <div class="view-header">
         <h2>本周计划</h2>
-        <p class="hint">长按拖拽，或点击选中后再点另一天交换</p>
+        <p class="hint">长按拖拽，或点击选中后更换内容 / 与另一天交换</p>
       </div>
       <div class="week-scroll">
         <div class="week-grid" id="weekGrid">${cards}</div>
       </div>
-      ${swapHint}
+      ${actionPanel}
     </div>`
 }
 
@@ -519,6 +528,15 @@ function bindEvents() {
 let dragSrc = null
 
 function bindWeek() {
+  // Type picker buttons
+  document.querySelectorAll('.type-pick-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (S.selected === null) return
+      S.plan[S.selected] = btn.dataset.setType
+      S.selected = null; save(); render()
+    })
+  })
+
   document.querySelectorAll('.day-card').forEach(card => {
     // Tap-to-swap (works on all devices)
     card.addEventListener('click', () => {
