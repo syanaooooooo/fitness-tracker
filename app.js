@@ -214,6 +214,13 @@ function renderToday() {
             </div>
           </div>
           <div class="field-row">
+            <label>卡路里消耗</label>
+            <div class="input-with-unit">
+              <input id="calories" type="number" value="${log.calories||''}" placeholder="0" min="0" max="2000">
+              <span class="unit">kcal</span>
+            </div>
+          </div>
+          <div class="field-row">
             <label>感受</label>
             <div class="feel-buttons">
               <button class="feel-btn ${log.feel==='easy'  ?'active':''}" data-feel="easy">轻松</button>
@@ -301,7 +308,6 @@ function renderToday() {
               ${mealRow('午餐','pl_text',log.pl_text,log.pl,log.cl,log.fl)}
               ${mealRow('晚餐','pd_text',log.pd_text,log.pd,log.cd,log.fd)}
             </div>
-            <button class="estimate-btn" id="estimateBtn">复制给 Claude 估算营养素</button>
             <div class="ref-toggle" id="refToggle">常见食物参考 ▾</div>
             <div class="ref-panel hidden" id="refPanel">
               <div class="ref-grid">
@@ -767,6 +773,8 @@ function bindToday() {
         log[inp.dataset.mealText] = inp.value
       })
       if (dur) log.duration = parseInt(dur.value) || 0
+      const cal = document.getElementById('calories')
+      if (cal) log.calories = parseInt(cal.value) || 0
       if (txt) log.notes = txt.value
       const fn = document.getElementById('freeNote')
       if (fn) log.freeNote = fn.value
