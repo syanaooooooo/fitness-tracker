@@ -184,9 +184,9 @@ function renderToday() {
   const w      = W[wt]
   const date   = todayStr()
   const log    = S.logs[date] || {}
-  const totalP = (log.pb||0) + (log.pl||0) + (log.pd||0)
-  const totalC = (log.cb||0) + (log.cl||0) + (log.cd||0)
-  const totalF = (log.fb||0) + (log.fl||0) + (log.fd||0)
+  const totalP = (log.pb||0) + (log.pl||0) + (log.pd||0) + (log.ps||0)
+  const totalC = (log.cb||0) + (log.cl||0) + (log.cd||0) + (log.cs||0)
+  const totalF = (log.fb||0) + (log.fl||0) + (log.fd||0) + (log.fs||0)
   const pctP   = Math.min(100, Math.round(totalP / PROTEIN_GOAL * 100))
   const pctC   = Math.min(100, Math.round(totalC / CARB_GOAL * 100))
   const pctF   = Math.min(100, Math.round(totalF / FAT_GOAL * 100))
@@ -307,6 +307,7 @@ function renderToday() {
               ${mealRow('早餐','pb_text',log.pb_text,log.pb,log.cb,log.fb)}
               ${mealRow('午餐','pl_text',log.pl_text,log.pl,log.cl,log.fl)}
               ${mealRow('晚餐','pd_text',log.pd_text,log.pd,log.cd,log.fd)}
+              ${mealRow('加餐','ps_text',log.ps_text,log.ps,log.cs,log.fs)}
             </div>
             <div class="ref-toggle" id="refToggle">常见食物参考 ▾</div>
             <div class="ref-panel hidden" id="refPanel">
@@ -338,14 +339,14 @@ function esc(s) {
 }
 
 function mealRow(label, textKey, textVal, pVal, cVal, fVal) {
-  // derive per-macro keys from textKey: 'pb_text' → pb/cb/fb, 'pl_text' → pl/cl/fl, 'pd_text' → pd/cd/fd
-  const slot = textKey[1] // 'b', 'l', 'd'
+  // derive per-macro keys from textKey: 'pb_text'→pb/cb/fb, 'pl_text'→pl/cl/fl, 'pd_text'→pd/cd/fd, 'ps_text'→ps/cs/fs
+  const slot = textKey[1] // 'b', 'l', 'd', 's'
   return `
     <div class="meal-row-block">
       <div class="meal-row-top">
         <span class="meal-label">${label}</span>
-        <input class="meal-text" data-meal-text="${textKey}" type="text"
-               value="${esc(textVal)}" placeholder="吃了什么…">
+        <textarea class="meal-text" data-meal-text="${textKey}"
+                  placeholder="吃了什么…" rows="2">${esc(textVal||'')}</textarea>
       </div>
       <div class="meal-row-nums">
         <div class="meal-macro-input">
@@ -512,10 +513,10 @@ function buildReport() {
   dates.forEach((date, i) => {
     const log = S.logs[date]
     if (!log) return
-    const tP = (log.pb||0)+(log.pl||0)+(log.pd||0)
-    const tC = (log.cb||0)+(log.cl||0)+(log.cd||0)
-    const tF = (log.fb||0)+(log.fl||0)+(log.fd||0)
-    const hasText = log.pb_text || log.pl_text || log.pd_text
+    const tP = (log.pb||0)+(log.pl||0)+(log.pd||0)+(log.ps||0)
+    const tC = (log.cb||0)+(log.cl||0)+(log.cd||0)+(log.cs||0)
+    const tF = (log.fb||0)+(log.fl||0)+(log.fd||0)+(log.fs||0)
+    const hasText = log.pb_text || log.pl_text || log.pd_text || log.ps_text
     if (!tP && !tC && !tF && !hasText) return
     hasMacro = true
     if (tP||tC||tF) lines.push(`${DAYS[i]}：蛋白质${tP}g / 碳水${tC}g / 脂肪${tF}g`)
@@ -523,6 +524,7 @@ function buildReport() {
       if (log.pb_text) lines.push(`  早餐：${log.pb_text}`)
       if (log.pl_text) lines.push(`  午餐：${log.pl_text}`)
       if (log.pd_text) lines.push(`  晚餐：${log.pd_text}`)
+      if (log.ps_text) lines.push(`  加餐：${log.ps_text}`)
     }
   })
   if (!hasMacro) lines.push('（本周暂无记录）')
