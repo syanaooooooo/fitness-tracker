@@ -32,9 +32,17 @@ let S = {
   viewDate: null,  // null = today; set to 'YYYY-MM-DD' when browsing past dates
 }
 
+let _cloudSaveTimer = null
 function save() {
-  const { selected, viewDate, ...data } = S   // tab 保存；selected/viewDate 不保存（临时交互状态）
+  const { selected, viewDate, ...data } = S
   localStorage.setItem('ft_v1', JSON.stringify(data))
+  // debounce 3s 后同步到云端
+  if (typeof saveToCloud === 'function') {
+    clearTimeout(_cloudSaveTimer)
+    _cloudSaveTimer = setTimeout(() => {
+      saveToCloud().catch(e => console.warn('云端同步失败:', e))
+    }, 3000)
+  }
 }
 
 function load() {
@@ -1002,5 +1010,20 @@ function showToast(msg) {
 // ============================================================
 // INIT
 // ============================================================
-load()
+load()   // 先从 localStorage 同步加载，保证 UI 立刻可用
 render()
+
+// 再异步从云端拉取，若有数据则覆盖并重渲染
+;(async () => {
+  if (typeof loadFromCloud !== 'function') return
+  try {
+    const cloudData = await loadFromCloud()
+    if (!cloudData) return
+    Object.assign(S, cloudData)
+    localStorage.setItem('ft_v1', JSON.stringify(cloudData))
+    render()
+    showToast('已从云端同步 ✓')
+  } catch(e) {
+    console.warn('云端加载失败:', e)
+  }
+})()
