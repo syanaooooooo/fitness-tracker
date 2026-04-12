@@ -32,16 +32,11 @@ let S = {
   viewDate: null,  // null = today; set to 'YYYY-MM-DD' when browsing past dates
 }
 
-let _cloudSaveTimer = null
 function save() {
   const { selected, viewDate, ...data } = S
   localStorage.setItem('ft_v1', JSON.stringify(data))
-  // debounce 3s 后同步到云端
   if (typeof saveToCloud === 'function') {
-    clearTimeout(_cloudSaveTimer)
-    _cloudSaveTimer = setTimeout(() => {
-      saveToCloud().catch(e => console.warn('云端同步失败:', e))
-    }, 3000)
+    saveToCloud().catch(e => console.warn('云端同步失败:', e))
   }
 }
 
@@ -493,13 +488,18 @@ function renderData() {
       </div>
 
       <div class="card backup-card">
-        <div class="card-label">数据备份</div>
+        <div class="card-label">本地备份</div>
         <div class="backup-row">
           <button id="exportBtn" class="backup-btn">导出 JSON</button>
           <label class="backup-btn import-label" for="importFile">导入 JSON</label>
           <input type="file" id="importFile" accept=".json" style="display:none">
         </div>
         <p class="backup-hint">导入会覆盖当前所有数据，建议先导出备份</p>
+      </div>
+
+      <div class="card cloud-card">
+        <div class="card-label">云端存档</div>
+        <div id="cloudSlots"><div class="cloud-loading">加载中…</div></div>
       </div>
     </div>`
 }
@@ -693,7 +693,7 @@ function bindEvents() {
   )
   if (S.tab === 'week')   bindWeek()
   if (S.tab === 'today')  bindToday()
-  if (S.tab === 'data')   bindData()
+  if (S.tab === 'data')   { bindData(); bindCloud() }
   if (S.tab === 'report') bindReport()
 }
 
@@ -974,6 +974,105 @@ function bindData() {
   })
 }
 
+// ── CLOUD ─────────────────────────────────────────
+function fmtSnapshotTime(isoStr) {
+  const d = new Date(isoStr)
+  const now = new Date()
+  const todayS = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`
+  const yest = new Date(now); yest.setDate(yest.getDate()-1)
+  const yestS = `${yest.getFullYear()}-${String(yest.getMonth()+1).padStart(2,'0')}-${String(yest.getDate()).padStart(2,'0')}`
+  const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+  const hm = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
+  if (ds === todayS) return `今天 ${hm}`
+  if (ds === yestS)  return `昨天 ${hm}`
+  return `${d.getMonth()+1}月${d.getDate()}日 ${hm}`
+}
+
+async function bindCloud() {
+  const container = document.getElementById('cloudSlots')
+  if (!container || typeof loadSnapshots !== 'function') return
+  try {
+    const snaps = await loadSnapshots()
+    const slots    = [1,2,3].map(n => snaps.find(s => s.name === `ft_slot_${n}`) || null)
+    const autos    = snaps.filter(s => s.name.startsWith('ft_auto_')).slice(0,3)
+    const restores = snaps.filter(s => s.name.startsWith('ft_pre_restore_')).slice(0,3)
+    const newestId = snaps[0]?.id
+
+    const slotHtml = slots.map((s, i) => `
+      <div class="cs-slot">
+        <div class="cs-slot-info">
+          <span class="cs-slot-name">存档 ${i+1}</span>
+          ${s ? `<span class="cs-slot-time">${fmtSnapshotTime(s.created_at)}${s.id===newestId?' <span class="cs-badge">最新</span>':''}</span>
+                 <span class="cs-slot-meta">${s.data?.meta?.log_count||0} 条记录</span>` : '<span class="cs-slot-empty">（空）</span>'}
+        </div>
+        <div class="cs-slot-btns">
+          <button class="cs-btn cs-btn-cover" data-slot="${i+1}">覆盖</button>
+          ${s ? `<button class="cs-btn cs-btn-restore" data-id="${s.id}">恢复</button>` : ''}
+        </div>
+      </div>`).join('')
+
+    const autoHtml = autos.length ? autos.map(s => `
+      <div class="cs-slot cs-slot-auto">
+        <div class="cs-slot-info">
+          <span class="cs-slot-time">${fmtSnapshotTime(s.created_at)}${s.id===newestId?' <span class="cs-badge">最新</span>':''}</span>
+          <span class="cs-slot-meta">${s.data?.meta?.log_count||0} 条记录</span>
+        </div>
+        <button class="cs-btn cs-btn-restore" data-id="${s.id}">恢复</button>
+      </div>`).join('') : '<div class="cs-empty">暂无自动快照</div>'
+
+    const restoreHtml = restores.length ? restores.map(s => `
+      <div class="cs-slot cs-slot-auto">
+        <div class="cs-slot-info">
+          <span class="cs-slot-time">${fmtSnapshotTime(s.created_at)}</span>
+          <span class="cs-slot-meta">${s.data?.meta?.log_count||0} 条记录</span>
+        </div>
+        <button class="cs-btn cs-btn-restore" data-id="${s.id}">恢复</button>
+      </div>`).join('') : ''
+
+    container.innerHTML = `
+      <div class="cs-section">
+        <div class="cs-label">手动存档 <span class="cs-hint">随时覆盖或恢复</span></div>
+        ${slotHtml}
+      </div>
+      <div class="cs-section">
+        <div class="cs-label">自动存档 <span class="cs-hint">每天首次打开，保留最近3个</span></div>
+        ${autoHtml}
+      </div>
+      ${restoreHtml ? `<div class="cs-section">
+        <div class="cs-label">恢复保护 <span class="cs-hint">每次恢复前自动备份，保留最近3条</span></div>
+        ${restoreHtml}
+      </div>` : ''}`
+
+    // 覆盖按钮
+    container.querySelectorAll('.cs-btn-cover').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const slot = btn.dataset.slot
+        btn.textContent = '保存中…'; btn.disabled = true
+        try {
+          await saveSnapshot(`ft_slot_${slot}`)
+          showToast(`存档 ${slot} 已保存 ✓`)
+          bindCloud()
+        } catch(e) { showToast('保存失败'); btn.textContent = '覆盖'; btn.disabled = false }
+      })
+    })
+
+    // 恢复按钮
+    container.querySelectorAll('.cs-btn-restore').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('恢复此存档？当前数据会自动备份到「恢复保护」。')) return
+        btn.textContent = '恢复中…'; btn.disabled = true
+        try {
+          await restoreSnapshot(btn.dataset.id)
+          render(); showToast('已恢复 ✓')
+          bindCloud()
+        } catch(e) { showToast('恢复失败'); btn.textContent = '恢复'; btn.disabled = false }
+      })
+    })
+  } catch(e) {
+    container.innerHTML = '<div class="cs-empty">云端连接失败</div>'
+  }
+}
+
 // ── REPORT ────────────────────────────────────────
 function bindReport() {
   document.getElementById('copyBtn')?.addEventListener('click', () => {
@@ -1025,5 +1124,9 @@ render()
     showToast('已从云端同步 ✓')
   } catch(e) {
     console.warn('云端加载失败:', e)
+  }
+  // 每日自动快照（在云端数据加载完后执行）
+  if (typeof autoSnapshot === 'function') {
+    autoSnapshot().catch(e => console.warn('自动快照失败:', e))
   }
 })()
