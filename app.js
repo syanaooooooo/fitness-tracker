@@ -304,17 +304,17 @@ function renderToday() {
               <div class="macro-bar-row">
                 <span class="macro-bar-label">蛋白质</span>
                 <div class="macro-bar"><div class="macro-fill macro-fill-p" id="fillP" style="width:${pctP}%"></div></div>
-                <span class="macro-bar-nums" id="numsP">${totalP}<span class="muted">/${PROTEIN_GOAL}g</span><span class="macro-pct"> · ${pctP}%</span></span>
+                <span class="macro-bar-nums" id="numsP">${totalP}<span class="muted">/${PROTEIN_GOAL}g</span><span class="macro-pct"> · ${Math.round(totalP/PROTEIN_GOAL*100)}%</span></span>
               </div>
               <div class="macro-bar-row">
                 <span class="macro-bar-label">碳水</span>
                 <div class="macro-bar"><div class="macro-fill macro-fill-c" id="fillC" style="width:${pctC}%"></div></div>
-                <span class="macro-bar-nums" id="numsC">${totalC}<span class="muted">/${CARB_GOAL}g</span><span class="macro-pct"> · ${pctC}%</span></span>
+                <span class="macro-bar-nums" id="numsC">${totalC}<span class="muted">/${CARB_GOAL}g</span><span class="macro-pct"> · ${Math.round(totalC/CARB_GOAL*100)}%</span></span>
               </div>
               <div class="macro-bar-row">
                 <span class="macro-bar-label">脂肪</span>
                 <div class="macro-bar"><div class="macro-fill macro-fill-f" id="fillF" style="width:${pctF}%"></div></div>
-                <span class="macro-bar-nums" id="numsF">${totalF}<span class="muted">/${FAT_GOAL}g</span><span class="macro-pct"> · ${pctF}%</span></span>
+                <span class="macro-bar-nums" id="numsF">${totalF}<span class="muted">/${FAT_GOAL}g</span><span class="macro-pct"> · ${Math.round(totalF/FAT_GOAL*100)}%</span></span>
               </div>
             </div>
             <div class="protein-meals">
@@ -774,9 +774,9 @@ function bindToday() {
       if (fillP) fillP.style.width = Math.min(100, Math.round(tP/PROTEIN_GOAL*100)) + '%'
       if (fillC) fillC.style.width = Math.min(100, Math.round(tC/CARB_GOAL*100)) + '%'
       if (fillF) fillF.style.width = Math.min(100, Math.round(tF/FAT_GOAL*100)) + '%'
-      if (numsP) numsP.innerHTML = `${tP}<span class="muted">/${PROTEIN_GOAL}g</span><span class="macro-pct"> · ${Math.min(100,Math.round(tP/PROTEIN_GOAL*100))}%</span>`
-      if (numsC) numsC.innerHTML = `${tC}<span class="muted">/${CARB_GOAL}g</span><span class="macro-pct"> · ${Math.min(100,Math.round(tC/CARB_GOAL*100))}%</span>`
-      if (numsF) numsF.innerHTML = `${tF}<span class="muted">/${FAT_GOAL}g</span><span class="macro-pct"> · ${Math.min(100,Math.round(tF/FAT_GOAL*100))}%</span>`
+      if (numsP) numsP.innerHTML = `${tP}<span class="muted">/${PROTEIN_GOAL}g</span><span class="macro-pct"> · ${Math.round(tP/PROTEIN_GOAL*100)}%</span>`
+      if (numsC) numsC.innerHTML = `${tC}<span class="muted">/${CARB_GOAL}g</span><span class="macro-pct"> · ${Math.round(tC/CARB_GOAL*100)}%</span>`
+      if (numsF) numsF.innerHTML = `${tF}<span class="muted">/${FAT_GOAL}g</span><span class="macro-pct"> · ${Math.round(tF/FAT_GOAL*100)}%</span>`
     })
   )
 
