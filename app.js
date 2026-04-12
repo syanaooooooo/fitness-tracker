@@ -858,8 +858,11 @@ function bindToday() {
       ;[['b','pb'],['l','pl'],['d','pd'],['s','ps']].forEach(([slot, prefix]) => {
         const text = (log[`${prefix}_text`] || '').trim()
         const hasNums = (log[`p${slot}`]||0) + (log[`c${slot}`]||0) + (log[`f${slot}`]||0) > 0
+        const cur = log[`${prefix}_status`]
         if (!text) {
           log[`${prefix}_status`] = null
+        } else if (cur === 'stale') {
+          // 文字改过但未重新计算，保持 stale
         } else if (hasNums) {
           log[`${prefix}_status`] = 'done'
         } else {
