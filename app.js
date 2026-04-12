@@ -358,7 +358,7 @@ function mealRow(label, textKey, textVal, pVal, cVal, fVal, detailJson, status) 
   if (status === 'pending') {
     statusBadge = `<span class="calc-status calc-pending" id="status-${statusKey}">⊙ 未计算</span>`
   } else if (status === 'done') {
-    statusBadge = `<span class="calc-status calc-done" id="status-${statusKey}">✓ 已记录</span>`
+    statusBadge = `<span class="calc-status calc-done" id="status-${statusKey}">✓ 已计算</span>`
   } else if (status === 'stale') {
     statusBadge = `<span class="calc-status calc-stale" id="status-${statusKey}">△ 待更新</span>`
   }
@@ -767,7 +767,6 @@ function bindToday() {
         if (badge) {
           badge.textContent = '△ 待更新'
           badge.className = 'calc-status calc-stale'
-          badge.parentElement.style.display = ''
         }
       }
     })
