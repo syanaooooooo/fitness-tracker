@@ -565,9 +565,14 @@ body {
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
-  width: 72px;
+  width: 100px;
   text-align: right;
   font-family: -apple-system, 'PingFang SC', sans-serif;
+}
+.macro-pct {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--ink-light);
 }
 
 .protein-meals {
