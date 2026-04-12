@@ -321,15 +321,41 @@ function renderToday() {
             </div>
             <div class="ref-toggle" id="refToggle">常见食物参考 ▾</div>
             <div class="ref-panel hidden" id="refPanel">
-              <div class="ref-grid">
-                ${[
-                  ['鸡蛋 1个','6g'],['纳豆 50g','8g'],
-                  ['三文鱼 100g','22g'],['牛肉 100g','26g'],
-                  ['猪肉 100g','20g'],['鸡胸肉 100g','31g'],
-                  ['希腊酸奶 150g','15g'],['蛋白粉 1勺','22g'],
-                  ['豆腐 100g','8g'],['牛奶 200ml','6g'],
-                ].map(([f,g]) => `<div class="ref-item"><span>${f}</span><b>${g}</b></div>`).join('')}
-              </div>
+              <table class="ref-table">
+                <thead>
+                  <tr>
+                    <th>食物</th>
+                    <th class="ref-hd-p">蛋白</th>
+                    <th class="ref-hd-c">碳水</th>
+                    <th class="ref-hd-f">脂肪</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${[
+                    ['鸡蛋 1个',          6,  0,  5],
+                    ['鹌鹑蛋 1个',        2,  0,  2],
+                    ['纳豆 50g',          8,  5,  5],
+                    ['拿铁 200ml',        7, 10,  7],
+                    ['去皮鸡肉 150g',    47,  0,  3],
+                    ['咸水鸭（去皮）3块', 18, 0,  4],
+                    ['沙茶牛肉 40g',      7,  2,  3],
+                    ['酸菜白肉 50g',      5,  2,  8],
+                    ['饺子 5个',          8, 20,  6],
+                    ['肉包 1个',          8, 28,  6],
+                    ['叉烧包 半个',       4, 22,  4],
+                    ['米饭 1/3碗',        2, 15,  0],
+                    ['笋 150g',           4,  5,  0],
+                    ['青菜 100g',         2,  4,  0],
+                    ['午后红茶 150ml',    0, 10,  0],
+                  ].map(([f,p,c,fat]) => `
+                    <tr>
+                      <td>${f}</td>
+                      <td class="ref-val-p">${p}g</td>
+                      <td class="ref-val-c">${c}g</td>
+                      <td class="ref-val-f">${fat}g</td>
+                    </tr>`).join('')}
+                </tbody>
+              </table>
             </div>
           </div>
 
