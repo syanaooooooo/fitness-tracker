@@ -291,6 +291,10 @@ function renderToday() {
             </div>
             <div class="energy-labels"><span>很低</span><span>很高</span></div>
           </div>
+          <div class="card">
+            <div class="card-label">今日备注 <span class="optional">可选</span></div>
+            <textarea id="notes" placeholder="饮食细节、情绪、其他……">${log.notes||''}</textarea>
+          </div>
         </div>
 
         <div class="today-col">
@@ -357,11 +361,6 @@ function renderToday() {
                 </tbody>
               </table>
             </div>
-          </div>
-
-          <div class="card">
-            <div class="card-label">今日备注 <span class="optional">可选</span></div>
-            <textarea id="notes" placeholder="饮食细节、情绪、其他……">${log.notes||''}</textarea>
           </div>
 
           <button class="save-btn" id="saveBtn">保存打卡</button>
