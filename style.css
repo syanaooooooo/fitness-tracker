@@ -287,6 +287,30 @@ body {
 /* ── TODAY VIEW ──────────────────────────────────── */
 .today-header { margin-bottom: 26px; }
 
+.day-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.day-nav-center { flex: 1; }
+
+.day-nav-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--ink-mid);
+  font-size: 15px;
+  cursor: pointer;
+  padding: 5px 13px;
+  font-family: inherit;
+  transition: border-color 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.day-nav-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.day-nav-btn:disabled { opacity: 0.25; cursor: default; }
+
 .greeting {
   font-size: 26px;
   font-weight: 600;
@@ -682,23 +706,6 @@ body {
 .detail-table td:first-child { color: var(--ink); }
 .detail-table tr:last-child td { border-bottom: none; }
 
-.estimate-btn {
-  width: 100%;
-  padding: 10px;
-  margin: 4px 0 12px;
-  background: var(--white);
-  color: var(--accent);
-  border: 1px solid var(--accent);
-  border-radius: var(--radius);
-  font-size: 13px;
-  font-weight: 400;
-  cursor: pointer;
-  font-family: inherit;
-  transition: background 0.15s;
-  letter-spacing: 0.06em;
-}
-
-.estimate-btn:hover { background: var(--accent-pale); }
 
 .backup-card .backup-row {
   display: flex;
@@ -1010,7 +1017,7 @@ textarea:focus { outline: none; border-color: var(--accent); }
 /* ── UTILS ───────────────────────────────────────── */
 .muted { color: var(--ink-light); }
 
-input:focus, .meal-input:focus, .input-with-unit input:focus {
+input:focus, .input-with-unit input:focus {
   outline: none;
   border-color: var(--accent);
 }

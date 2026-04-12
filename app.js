@@ -23,16 +23,17 @@ const FAT_GOAL     = 55
 let S = {
   tab: 'week',
   plan: [...DEFAULT_PLAN],
-  logs: {},       // { 'YYYY-MM-DD': { done, duration, feel, pb/pl/pd, cb/cl/cd, fb/fl/fd, pb_text/pl_text/pd_text, energy, notes, freeNote } }
+  logs: {},       // { 'YYYY-MM-DD': { done, duration, calories, feel, pb/pl/pd/ps, cb/cl/cd/cs, fb/fl/fd/fs, pb_text/pl_text/pd_text/ps_text, pb_detail/..., energy, notes, freeNote } }
   weights: [],    // [{ date, v }]
   measures: [],   // [{ date, waist, hip }]
   startWeight: 76,
   targetWeight: 71,
-  selected: null, // selected day index for tap-swap
+  selected: null,  // selected day index for tap-swap
+  viewDate: null,  // null = today; set to 'YYYY-MM-DD' when browsing past dates
 }
 
 function save() {
-  const { selected, ...data } = S   // tab 保存，selected 不保存（临时交互状态）
+  const { selected, viewDate, ...data } = S   // tab 保存；selected/viewDate 不保存（临时交互状态）
   localStorage.setItem('ft_v1', JSON.stringify(data))
 }
 
@@ -47,7 +48,8 @@ function load() {
 // DATE UTILS
 // ============================================================
 function todayStr() {
-  return new Date().toISOString().split('T')[0]
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
 }
 
 function todayDayIdx() {
@@ -64,7 +66,7 @@ function weekDates() {
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(mon)
     d.setDate(mon.getDate() + i)
-    return d.toISOString().split('T')[0]
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
   })
 }
 
@@ -179,11 +181,13 @@ function freeSuggestions() {
 
 // ── TODAY ─────────────────────────────────────────
 function renderToday() {
-  const idx    = todayDayIdx()
-  const wt     = S.plan[idx]
-  const w      = W[wt]
-  const date   = todayStr()
-  const log    = S.logs[date] || {}
+  const date    = S.viewDate || todayStr()
+  const isToday = date === todayStr()
+  const _d      = new Date(date + 'T12:00:00')
+  const idx     = _d.getDay() === 0 ? 6 : _d.getDay() - 1
+  const wt      = S.plan[idx]
+  const w       = W[wt]
+  const log     = S.logs[date] || {}
   const totalP = (log.pb||0) + (log.pl||0) + (log.pd||0) + (log.ps||0)
   const totalC = (log.cb||0) + (log.cl||0) + (log.cd||0) + (log.cs||0)
   const totalF = (log.fb||0) + (log.fl||0) + (log.fd||0) + (log.fs||0)
@@ -253,8 +257,14 @@ function renderToday() {
   return `
     <div class="view-today">
       <div class="today-header">
-        <div class="greeting">${greeting()}</div>
-        <div class="today-date">${fmtDate(date)} · ${DAYS[idx]}</div>
+        <div class="day-nav">
+          <button class="day-nav-btn" id="prevDay">←</button>
+          <div class="day-nav-center">
+            <div class="greeting">${isToday ? greeting() : DAYS[idx]}</div>
+            <div class="today-date">${fmtDate(date)} · ${DAYS[idx]}${isToday ? ' · 今日' : ''}</div>
+          </div>
+          <button class="day-nav-btn" id="nextDay"${isToday ? ' disabled' : ''}>→</button>
+        </div>
       </div>
 
       <div class="today-cols">
@@ -289,18 +299,18 @@ function renderToday() {
             <div class="macro-bars">
               <div class="macro-bar-row">
                 <span class="macro-bar-label">蛋白质</span>
-                <div class="macro-bar"><div class="macro-fill macro-fill-p" style="width:${pctP}%"></div></div>
-                <span class="macro-bar-nums">${totalP}<span class="muted">/${PROTEIN_GOAL}g</span></span>
+                <div class="macro-bar"><div class="macro-fill macro-fill-p" id="fillP" style="width:${pctP}%"></div></div>
+                <span class="macro-bar-nums" id="numsP">${totalP}<span class="muted">/${PROTEIN_GOAL}g</span></span>
               </div>
               <div class="macro-bar-row">
                 <span class="macro-bar-label">碳水</span>
-                <div class="macro-bar"><div class="macro-fill macro-fill-c" style="width:${pctC}%"></div></div>
-                <span class="macro-bar-nums">${totalC}<span class="muted">/${CARB_GOAL}g</span></span>
+                <div class="macro-bar"><div class="macro-fill macro-fill-c" id="fillC" style="width:${pctC}%"></div></div>
+                <span class="macro-bar-nums" id="numsC">${totalC}<span class="muted">/${CARB_GOAL}g</span></span>
               </div>
               <div class="macro-bar-row">
                 <span class="macro-bar-label">脂肪</span>
-                <div class="macro-bar"><div class="macro-fill macro-fill-f" style="width:${pctF}%"></div></div>
-                <span class="macro-bar-nums">${totalF}<span class="muted">/${FAT_GOAL}g</span></span>
+                <div class="macro-bar"><div class="macro-fill macro-fill-f" id="fillF" style="width:${pctF}%"></div></div>
+                <span class="macro-bar-nums" id="numsF">${totalF}<span class="muted">/${FAT_GOAL}g</span></span>
               </div>
             </div>
             <div class="protein-meals">
@@ -460,13 +470,13 @@ function renderWeightChart() {
   const circles = sorted.map((w,i) => {
     const x = sorted.length<2 ? CW/2 : (i/(sorted.length-1))*CW
     const y = CH - ((w.v-lo)/(hi-lo))*CH
-    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="var(--green)"/>`
+    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="var(--accent)"/>`
   }).join('')
   const last = sorted[sorted.length-1]
   return `
     <div class="weight-chart">
       <svg viewBox="0 0 ${CW} ${CH}" preserveAspectRatio="none">
-        <polyline points="${pts}" fill="none" stroke="var(--green)" stroke-width="2"
+        <polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2"
           stroke-linecap="round" stroke-linejoin="round"/>
         ${circles}
       </svg>
@@ -510,7 +520,7 @@ function buildReport() {
     '',
     `基本信息：33岁，身高169cm，起始体重76kg，目标71kg`,
     `目标：减脂增肌（体重不变腰围缩小也算成功）`,
-    `每日营养素目标：蛋白质120g / 碳水200g / 脂肪55g`,
+    `每日营养素目标：蛋白质${PROTEIN_GOAL}g / 碳水${CARB_GOAL}g / 脂肪${FAT_GOAL}g`,
     '',
     '【本周训练】',
   ]
@@ -529,7 +539,7 @@ function buildReport() {
     lines.push(`${DAYS[i]} ${fmtDate(date)}  ${w.label}  ${status}${extra}`)
   })
 
-  lines.push('', '【营养素摄入】目标：蛋白质120g / 碳水200g / 脂肪55g')
+  lines.push('', `【营养素摄入】目标：蛋白质${PROTEIN_GOAL}g / 碳水${CARB_GOAL}g / 脂肪${FAT_GOAL}g`)
   let hasMacro = false
   dates.forEach((date, i) => {
     const log = S.logs[date]
@@ -617,9 +627,9 @@ function calcRate() {
 }
 
 function calcAvgProtein() {
-  const entries = Object.values(S.logs).filter(l => (l.pb||l.pl||l.pd))
+  const entries = Object.values(S.logs).filter(l => (l.pb||l.pl||l.pd||l.ps))
   if (!entries.length) return 0
-  return Math.round(entries.reduce((s,l)=>s+(l.pb||0)+(l.pl||0)+(l.pd||0), 0) / entries.length)
+  return Math.round(entries.reduce((s,l)=>s+(l.pb||0)+(l.pl||0)+(l.pd||0)+(l.ps||0), 0) / entries.length)
 }
 
 // ============================================================
@@ -627,7 +637,11 @@ function calcAvgProtein() {
 // ============================================================
 function bindEvents() {
   document.querySelectorAll('.nav-btn').forEach(btn =>
-    btn.addEventListener('click', () => { S.tab = btn.dataset.tab; S.selected = null; render() })
+    btn.addEventListener('click', () => {
+      S.tab = btn.dataset.tab; S.selected = null
+      if (btn.dataset.tab !== 'today') S.viewDate = null  // 离开今日tab时重置到今天
+      render()
+    })
   )
   if (S.tab === 'week')   bindWeek()
   if (S.tab === 'today')  bindToday()
@@ -707,17 +721,26 @@ function bindToday() {
     })
   )
 
-  // Protein: number inputs — live bar update
+  // Macro number inputs — live bar update for all 3
   document.querySelectorAll('.meal-num').forEach(inp =>
     inp.addEventListener('input', () => {
       const log = getLog(date)
       log[inp.dataset.meal] = parseInt(inp.value) || 0
-      const total = (log.pb||0)+(log.pl||0)+(log.pd||0)
-      const pct   = Math.min(100, Math.round(total/PROTEIN_GOAL*100))
-      const fill  = document.getElementById('proteinFill')
-      const nums  = document.getElementById('proteinNums')
-      if (fill) fill.style.width = pct + '%'
-      if (nums) nums.innerHTML = `${total}g <span class="muted">/ ${PROTEIN_GOAL}g</span>`
+      const tP = (log.pb||0)+(log.pl||0)+(log.pd||0)+(log.ps||0)
+      const tC = (log.cb||0)+(log.cl||0)+(log.cd||0)+(log.cs||0)
+      const tF = (log.fb||0)+(log.fl||0)+(log.fd||0)+(log.fs||0)
+      const fillP = document.getElementById('fillP')
+      const fillC = document.getElementById('fillC')
+      const fillF = document.getElementById('fillF')
+      const numsP = document.getElementById('numsP')
+      const numsC = document.getElementById('numsC')
+      const numsF = document.getElementById('numsF')
+      if (fillP) fillP.style.width = Math.min(100, Math.round(tP/PROTEIN_GOAL*100)) + '%'
+      if (fillC) fillC.style.width = Math.min(100, Math.round(tC/CARB_GOAL*100)) + '%'
+      if (fillF) fillF.style.width = Math.min(100, Math.round(tF/FAT_GOAL*100)) + '%'
+      if (numsP) numsP.innerHTML = `${tP}<span class="muted">/${PROTEIN_GOAL}g</span>`
+      if (numsC) numsC.innerHTML = `${tC}<span class="muted">/${CARB_GOAL}g</span>`
+      if (numsF) numsF.innerHTML = `${tF}<span class="muted">/${FAT_GOAL}g</span>`
     })
   )
 
@@ -727,27 +750,6 @@ function bindToday() {
       getLog(date)[inp.dataset.mealText] = inp.value
     })
   )
-
-  // Estimate button
-  document.getElementById('estimateBtn')?.addEventListener('click', () => {
-    const log = S.logs[date] || {}
-    const prompt = [
-      '帮我估算今天每餐的蛋白质含量（g），只需给出每餐的克数数字：',
-      `早餐：${log.pb_text || '未填写'}`,
-      `午餐：${log.pl_text || '未填写'}`,
-      `晚餐：${log.pd_text || '未填写'}`,
-      '',
-      '请按格式回复：早餐 Xg，午餐 Xg，晚餐 Xg，合计 Xg',
-    ].join('\n')
-    navigator.clipboard.writeText(prompt)
-      .then(() => showToast('已复制，粘贴给 Claude ✓'))
-      .catch(() => {
-        const ta = document.createElement('textarea')
-        ta.value = prompt; document.body.appendChild(ta); ta.select()
-        document.execCommand('copy'); ta.remove()
-        showToast('已复制，粘贴给 Claude ✓')
-      })
-  })
 
   // Energy buttons
   document.querySelectorAll('.energy-btn').forEach(btn =>
@@ -793,6 +795,23 @@ function bindToday() {
         ? '常见食物参考 ▾' : '常见食物参考 ▴'
     })
   }
+
+  // Day navigation
+  function localDateStr(d) {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+  }
+  document.getElementById('prevDay')?.addEventListener('click', () => {
+    const cur = new Date((S.viewDate || todayStr()) + 'T12:00:00')
+    cur.setDate(cur.getDate() - 1)
+    S.viewDate = localDateStr(cur)
+    render()
+  })
+  document.getElementById('nextDay')?.addEventListener('click', () => {
+    const cur = new Date((S.viewDate || todayStr()) + 'T12:00:00')
+    cur.setDate(cur.getDate() + 1)
+    const next = localDateStr(cur)
+    if (next <= todayStr()) { S.viewDate = next; render() }
+  })
 
   // Save button
   const saveBtn = document.getElementById('saveBtn')
