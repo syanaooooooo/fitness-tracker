@@ -314,10 +314,10 @@ function renderToday() {
               </div>
             </div>
             <div class="protein-meals">
-              ${mealRow('早餐','pb_text',log.pb_text,log.pb,log.cb,log.fb,log.pb_detail)}
-              ${mealRow('午餐','pl_text',log.pl_text,log.pl,log.cl,log.fl,log.pl_detail)}
-              ${mealRow('晚餐','pd_text',log.pd_text,log.pd,log.cd,log.fd,log.pd_detail)}
-              ${mealRow('加餐','ps_text',log.ps_text,log.ps,log.cs,log.fs,log.ps_detail)}
+              ${mealRow('早餐','pb_text',log.pb_text,log.pb,log.cb,log.fb,log.pb_detail,log.pb_status)}
+              ${mealRow('午餐','pl_text',log.pl_text,log.pl,log.cl,log.fl,log.pl_detail,log.pl_status)}
+              ${mealRow('晚餐','pd_text',log.pd_text,log.pd,log.cd,log.fd,log.pd_detail,log.pd_status)}
+              ${mealRow('加餐','ps_text',log.ps_text,log.ps,log.cs,log.fs,log.ps_detail,log.ps_status)}
             </div>
             <div class="ref-toggle" id="refToggle">常见食物参考 ▾</div>
             <div class="ref-panel hidden" id="refPanel">
@@ -348,10 +348,20 @@ function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
 }
 
-function mealRow(label, textKey, textVal, pVal, cVal, fVal, detailJson) {
+function mealRow(label, textKey, textVal, pVal, cVal, fVal, detailJson, status) {
   // derive per-macro keys: 'pb_text'→pb/cb/fb, 'pl_text'→pl/cl/fl, 'pd_text'→pd/cd/fd, 'ps_text'→ps/cs/fs
   const slot = textKey[1] // 'b', 'l', 'd', 's'
   const detailKey = textKey.replace('_text', '_detail')
+  const statusKey = textKey.replace('_text', '_status')
+
+  let statusBadge = ''
+  if (status === 'pending') {
+    statusBadge = `<span class="calc-status calc-pending" id="status-${statusKey}">⊙ 未计算</span>`
+  } else if (status === 'done') {
+    statusBadge = `<span class="calc-status calc-done" id="status-${statusKey}">✓ 已记录</span>`
+  } else if (status === 'stale') {
+    statusBadge = `<span class="calc-status calc-stale" id="status-${statusKey}">△ 待更新</span>`
+  }
 
   let detailBlock = ''
   if (detailJson) {
@@ -375,9 +385,10 @@ function mealRow(label, textKey, textVal, pVal, cVal, fVal, detailJson) {
     <div class="meal-row-block">
       <div class="meal-row-top">
         <span class="meal-label">${label}</span>
-        <textarea class="meal-text" data-meal-text="${textKey}"
+        <textarea class="meal-text" data-meal-text="${textKey}" data-status-key="${statusKey}"
                   placeholder="吃了什么…" rows="2">${esc(textVal||'')}</textarea>
       </div>
+      ${statusBadge ? `<div class="meal-status-row">${statusBadge}</div>` : ''}
       <div class="meal-row-nums">
         <div class="meal-macro-input">
           <span class="macro-tag macro-tag-p">蛋白质</span>
@@ -744,10 +755,21 @@ function bindToday() {
     })
   )
 
-  // Protein: text inputs — save description
+  // Meal text inputs — save description + detect stale status
   document.querySelectorAll('.meal-text').forEach(inp =>
     inp.addEventListener('input', () => {
-      getLog(date)[inp.dataset.mealText] = inp.value
+      const log = getLog(date)
+      log[inp.dataset.mealText] = inp.value
+      const sk = inp.dataset.statusKey
+      if (log[sk] === 'done') {
+        log[sk] = 'stale'
+        const badge = document.getElementById('status-' + sk)
+        if (badge) {
+          badge.textContent = '△ 待更新'
+          badge.className = 'calc-status calc-stale'
+          badge.parentElement.style.display = ''
+        }
+      }
     })
   )
 
@@ -832,7 +854,22 @@ function bindToday() {
       if (txt) log.notes = txt.value
       const fn = document.getElementById('freeNote')
       if (fn) log.freeNote = fn.value
+
+      // 更新每餐计算状态
+      ;[['b','pb'],['l','pl'],['d','pd'],['s','ps']].forEach(([slot, prefix]) => {
+        const text = (log[`${prefix}_text`] || '').trim()
+        const hasNums = (log[`p${slot}`]||0) + (log[`c${slot}`]||0) + (log[`f${slot}`]||0) > 0
+        if (!text) {
+          log[`${prefix}_status`] = null
+        } else if (hasNums) {
+          log[`${prefix}_status`] = 'done'
+        } else {
+          log[`${prefix}_status`] = 'pending'
+        }
+      })
+
       save()
+      render()
       showToast('已保存 ✓')
     })
   }

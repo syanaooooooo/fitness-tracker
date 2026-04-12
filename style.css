@@ -604,6 +604,21 @@ body {
   font-family: -apple-system, 'PingFang SC', sans-serif;
 }
 
+.meal-status-row {
+  padding-left: 42px;
+  margin-top: -2px;
+}
+
+.calc-status {
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  font-family: -apple-system, 'PingFang SC', sans-serif;
+}
+
+.calc-pending { color: #B87C30; }
+.calc-done    { color: var(--accent); }
+.calc-stale   { color: #C05010; }
+
 .meal-text {
   flex: 1;
   padding: 8px 10px;
