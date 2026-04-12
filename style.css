@@ -1104,10 +1104,10 @@ input[type=number] { -moz-appearance: textfield; }
   .week-grid .w-detail { display: none; }
   .week-grid .w-tag { font-size: 10px; }
 
-  /* Today: 2-column */
+  /* Today: 30/70 */
   .today-cols {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 3fr 7fr;
     gap: 16px;
     align-items: start;
   }

@@ -32,7 +32,7 @@ let S = {
 }
 
 function save() {
-  const { tab, selected, ...data } = S
+  const { selected, ...data } = S   // tab 保存，selected 不保存（临时交互状态）
   localStorage.setItem('ft_v1', JSON.stringify(data))
 }
 
