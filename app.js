@@ -14,7 +14,7 @@ const W = {
 const DAYS   = ['周一','周二','周三','周四','周五','周六','周日']
 const DEFAULT_PLAN = ['elliptical','pt','yoga','pt','elliptical','free','rest']
 const PROTEIN_GOAL = 120
-const CARB_GOAL    = 200
+const CARB_GOAL    = 160
 const FAT_GOAL     = 55
 
 // ============================================================
