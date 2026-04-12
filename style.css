@@ -2,11 +2,11 @@
   --bg: #F7F4EE;
   --bg2: #EDE9E1;
   --bg3: #E4DFD5;
-  --ink: #1C1C1A;
-  --ink-mid: #4A4844;
-  --ink-light: #8A8780;
-  --border: #C8C3B8;
-  --border-light: #DDD9D0;
+  --ink: #0D0D0B;
+  --ink-mid: #2C2A27;
+  --ink-light: #5C5A57;
+  --border: #B8B3A8;
+  --border-light: #D0CBC0;
   --accent: #2D5A3D;
   --accent-pale: #D4E4D8;
   --white: #FDFCF9;
@@ -105,11 +105,11 @@ body {
 }
 
 .card-label {
-  font-size: 10px;
-  font-weight: 400;
-  letter-spacing: 0.18em;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--ink-light);
+  color: var(--ink-mid);
   margin-bottom: 16px;
   font-family: -apple-system, 'PingFang SC', sans-serif;
 }
@@ -320,7 +320,7 @@ body {
 
 .today-date {
   font-size: 12px;
-  color: var(--ink-light);
+  color: var(--ink-mid);
   margin-top: 4px;
   letter-spacing: 0.06em;
   font-family: -apple-system, 'PingFang SC', sans-serif;
@@ -538,7 +538,8 @@ body {
 
 .macro-bar-label {
   font-size: 11px;
-  color: var(--ink-light);
+  font-weight: 500;
+  color: var(--ink-mid);
   width: 38px;
   flex-shrink: 0;
   letter-spacing: 0.04em;
@@ -601,9 +602,10 @@ body {
 
 .meal-label {
   font-size: 12px;
+  font-weight: 600;
   width: 32px;
   flex-shrink: 0;
-  color: var(--ink-light);
+  color: var(--ink-mid);
   letter-spacing: 0.06em;
   padding-top: 8px;
   font-family: -apple-system, 'PingFang SC', sans-serif;
