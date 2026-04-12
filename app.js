@@ -716,7 +716,7 @@ function bindWeek() {
 
 // ── TODAY ─────────────────────────────────────────
 function bindToday() {
-  const date = todayStr()
+  const date = S.viewDate || todayStr()
 
   // Done buttons
   document.querySelectorAll('.done-btn').forEach(btn =>
