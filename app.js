@@ -1012,11 +1012,16 @@ async function bindCloud() {
       try {
         const cloudData = await loadFromCloud()
         if (!cloudData) { showToast('云端暂无数据'); return }
-        // merge：云端 logs 为主，本地独有的 date 保留
-        const mergedLogs = { ...(S.logs||{}), ...(cloudData.logs||{}) }
+        // 字段级 merge（云端优先）
+        const mergedLogs = { ...(cloudData.logs||{}) }
+        for (const [date, localLog] of Object.entries(S.logs||{})) {
+          mergedLogs[date] = mergedLogs[date]
+            ? mergeDayLog(localLog, mergedLogs[date])
+            : localLog
+        }
         const wMap = {}
         for (const w of [...(S.weights||[]), ...(cloudData.weights||[])]) wMap[w.date] = w
-        const merged = { ...S, ...cloudData, logs: mergedLogs,
+        const merged = { ...cloudData, logs: mergedLogs,
           weights: Object.values(wMap).sort((a,b)=>a.date.localeCompare(b.date)) }
         delete merged.selected; delete merged.viewDate; delete merged.meta
         Object.assign(S, merged)
@@ -1151,39 +1156,53 @@ function showToast(msg) {
 load()   // 先从 localStorage 同步加载，保证 UI 立刻可用
 render()
 
-// 异步云端同步：merge 本地+云端，谁有数据用谁，时间戳新的优先
+// 字段级 merge：两个 day log 合并，非空/非零优先，status 以 done>stale>pending>null 优先
+function mergeDayLog(local, cloud) {
+  const STATUS_RANK = { done: 3, stale: 2, pending: 1 }
+  const result = { ...cloud }
+  for (const key of Object.keys(local)) {
+    const lv = local[key], cv = cloud[key]
+    if (lv === null || lv === undefined || lv === '' || lv === 0) continue
+    if (cv === null || cv === undefined || cv === '' || cv === 0) { result[key] = lv; continue }
+    // 两边都有值
+    if (key.endsWith('_status')) {
+      result[key] = (STATUS_RANK[lv] || 0) >= (STATUS_RANK[cv] || 0) ? lv : cv
+    } else if (key.endsWith('_text') || key === 'notes') {
+      result[key] = String(lv).length >= String(cv).length ? lv : cv
+    }
+    // 数值、detail 等字段：保留 cloud（cloud 是更完整的来源）
+  }
+  return result
+}
+
+// 异步云端同步：字段级 merge，任何字段都不会因为对端为空而丢失
 ;(async () => {
   if (typeof loadFromCloud !== 'function') return
   try {
     const cloudData = await loadFromCloud()
     if (!cloudData) {
-      // 云端无数据 → 把本地推上去
       if (typeof saveToCloud === 'function') saveToCloud().catch(()=>{})
     } else {
-      const localTs = S.updated_at ? new Date(S.updated_at).getTime() : 0
-      const cloudTs = cloudData.updated_at ? new Date(cloudData.updated_at).getTime() : 0
-
-      // 合并 logs：取并集，同一天以「updated_at 较新的来源」整体优先
+      // logs：所有日期取并集，同天做字段级 merge
       const mergedLogs = { ...(cloudData.logs || {}) }
       for (const [date, localLog] of Object.entries(S.logs || {})) {
-        if (!mergedLogs[date]) {
-          mergedLogs[date] = localLog
-        } else {
-          // 同一天：本地比云端新则用本地，否则用云端
-          mergedLogs[date] = localTs >= cloudTs ? localLog : mergedLogs[date]
-        }
+        mergedLogs[date] = mergedLogs[date]
+          ? mergeDayLog(localLog, mergedLogs[date])
+          : localLog
       }
 
-      // 合并 weights（去重，按 date 合并）
+      // weights：去重合并
       const wMap = {}
       for (const w of [...(cloudData.weights||[]), ...(S.weights||[])]) wMap[w.date] = w
       const mergedWeights = Object.values(wMap).sort((a,b) => a.date.localeCompare(b.date))
 
-      // 取较新的 updated_at
-      const mergedTs = cloudTs > localTs ? cloudData.updated_at : (S.updated_at || cloudData.updated_at)
+      const localTs = S.updated_at ? new Date(S.updated_at).getTime() : 0
+      const cloudTs = cloudData.updated_at ? new Date(cloudData.updated_at).getTime() : 0
+      const mergedTs = Math.max(localTs, cloudTs)
+        ? (cloudTs >= localTs ? cloudData.updated_at : S.updated_at)
+        : new Date().toISOString()
 
-      const merged = { ...cloudData, ...( localTs >= cloudTs ? S : cloudData ),
-        logs: mergedLogs, weights: mergedWeights, updated_at: mergedTs }
+      const merged = { ...cloudData, logs: mergedLogs, weights: mergedWeights, updated_at: mergedTs }
       delete merged.selected; delete merged.viewDate; delete merged.meta
 
       Object.assign(S, merged)
@@ -1191,7 +1210,6 @@ render()
       render()
       showToast('已同步云端 ✓')
 
-      // 如果本地比云端新，顺手推一次
       if (localTs > cloudTs && typeof saveToCloud === 'function') saveToCloud().catch(()=>{})
     }
   } catch(e) {
