@@ -34,6 +34,7 @@ let S = {
 
 function save() {
   const { selected, viewDate, ...data } = S
+  data.updated_at = new Date().toISOString()
   localStorage.setItem('ft_v1', JSON.stringify(data))
   if (typeof saveToCloud === 'function') {
     saveToCloud().catch(e => console.warn('云端同步失败:', e))
@@ -499,6 +500,10 @@ function renderData() {
 
       <div class="card cloud-card">
         <div class="card-label">云端存档</div>
+        <div class="cs-sync-bar">
+          <span id="syncStatus" class="cs-sync-status"></span>
+          <button id="forcePullBtn" class="cs-btn cs-btn-pull">强制拉取云端</button>
+        </div>
         <div id="cloudSlots"><div class="cloud-loading">加载中…</div></div>
       </div>
     </div>`
@@ -988,7 +993,35 @@ function fmtSnapshotTime(isoStr) {
   return `${d.getMonth()+1}月${d.getDate()}日 ${hm}`
 }
 
+function updateSyncStatus() {
+  const el = document.getElementById('syncStatus')
+  if (!el) return
+  const ts = S.updated_at
+  el.textContent = ts ? `本地: ${fmtSnapshotTime(ts)}` : '本地: 无记录'
+}
+
 async function bindCloud() {
+  updateSyncStatus()
+
+  // 强制拉取按钮
+  const pullBtn = document.getElementById('forcePullBtn')
+  if (pullBtn && !pullBtn._bound) {
+    pullBtn._bound = true
+    pullBtn.addEventListener('click', async () => {
+      if (!confirm('强制拉取云端数据？本地未同步的修改会丢失。')) return
+      pullBtn.textContent = '拉取中…'; pullBtn.disabled = true
+      try {
+        const cloudData = await loadFromCloud()
+        if (!cloudData) { showToast('云端暂无数据'); return }
+        Object.assign(S, cloudData)
+        localStorage.setItem('ft_v1', JSON.stringify(cloudData))
+        render(); showToast('已强制拉取云端 ✓')
+        updateSyncStatus()
+      } catch(e) { showToast('拉取失败') }
+      finally { pullBtn.textContent = '强制拉取云端'; pullBtn.disabled = false }
+    })
+  }
+
   const container = document.getElementById('cloudSlots')
   if (!container || typeof loadSnapshots !== 'function') return
   try {
@@ -1112,20 +1145,34 @@ function showToast(msg) {
 load()   // 先从 localStorage 同步加载，保证 UI 立刻可用
 render()
 
-// 再异步从云端拉取，若有数据则覆盖并重渲染
+// 异步云端同步：比较时间戳，谁新用谁
 ;(async () => {
   if (typeof loadFromCloud !== 'function') return
   try {
     const cloudData = await loadFromCloud()
-    if (!cloudData) return
-    Object.assign(S, cloudData)
-    localStorage.setItem('ft_v1', JSON.stringify(cloudData))
-    render()
-    showToast('已从云端同步 ✓')
+    if (!cloudData) {
+      // 云端无数据，把本地推上去
+      if (typeof saveToCloud === 'function') saveToCloud().catch(()=>{})
+    } else {
+      const localTs  = S.updated_at  ? new Date(S.updated_at).getTime()  : 0
+      const cloudTs  = cloudData.updated_at ? new Date(cloudData.updated_at).getTime() : 0
+      if (cloudTs > localTs) {
+        // 云端更新 → 用云端
+        Object.assign(S, cloudData)
+        localStorage.setItem('ft_v1', JSON.stringify(cloudData))
+        render()
+        showToast('已从云端同步 ✓')
+      } else if (localTs > cloudTs) {
+        // 本地更新 → 推到云端
+        if (typeof saveToCloud === 'function') saveToCloud().catch(()=>{})
+        showToast('本地数据已推送至云端 ✓')
+      }
+      // 相等：无需操作
+    }
   } catch(e) {
     console.warn('云端加载失败:', e)
   }
-  // 每日自动快照（在云端数据加载完后执行）
+  // 每日自动快照
   if (typeof autoSnapshot === 'function') {
     autoSnapshot().catch(e => console.warn('自动快照失败:', e))
   }

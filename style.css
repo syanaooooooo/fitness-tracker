@@ -771,6 +771,35 @@ body {
 }
 
 /* ── CLOUD ARCHIVE ───────────────────────────────── */
+.cs-sync-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-light);
+}
+.cs-sync-status {
+  font-size: 15px;
+  color: var(--ink-light);
+  font-family: -apple-system, 'PingFang SC', sans-serif;
+}
+.cs-btn-pull {
+  font-size: 15px;
+  font-family: -apple-system, 'PingFang SC', sans-serif;
+  padding: 5px 12px;
+  border: 2px solid var(--border);
+  background: var(--white);
+  color: var(--ink-mid);
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  transition: border-color 0.15s, color 0.15s;
+}
+.cs-btn-pull:hover { border-color: var(--accent); color: var(--accent); }
+.cs-btn-pull:disabled { opacity: 0.4; cursor: default; }
+
 .cloud-loading, .cs-empty {
   font-size: 17px;
   color: var(--ink-light);
