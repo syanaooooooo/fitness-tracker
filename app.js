@@ -1008,14 +1008,20 @@ async function bindCloud() {
   if (pullBtn && !pullBtn._bound) {
     pullBtn._bound = true
     pullBtn.addEventListener('click', async () => {
-      if (!confirm('强制拉取云端数据？本地未同步的修改会丢失。')) return
       pullBtn.textContent = '拉取中…'; pullBtn.disabled = true
       try {
         const cloudData = await loadFromCloud()
         if (!cloudData) { showToast('云端暂无数据'); return }
-        Object.assign(S, cloudData)
-        localStorage.setItem('ft_v1', JSON.stringify(cloudData))
-        render(); showToast('已强制拉取云端 ✓')
+        // merge：云端 logs 为主，本地独有的 date 保留
+        const mergedLogs = { ...(S.logs||{}), ...(cloudData.logs||{}) }
+        const wMap = {}
+        for (const w of [...(S.weights||[]), ...(cloudData.weights||[])]) wMap[w.date] = w
+        const merged = { ...S, ...cloudData, logs: mergedLogs,
+          weights: Object.values(wMap).sort((a,b)=>a.date.localeCompare(b.date)) }
+        delete merged.selected; delete merged.viewDate; delete merged.meta
+        Object.assign(S, merged)
+        localStorage.setItem('ft_v1', JSON.stringify(merged))
+        render(); showToast('已拉取云端并合并 ✓')
         updateSyncStatus()
       } catch(e) { showToast('拉取失败') }
       finally { pullBtn.textContent = '强制拉取云端'; pullBtn.disabled = false }
@@ -1145,29 +1151,48 @@ function showToast(msg) {
 load()   // 先从 localStorage 同步加载，保证 UI 立刻可用
 render()
 
-// 异步云端同步：比较时间戳，谁新用谁
+// 异步云端同步：merge 本地+云端，谁有数据用谁，时间戳新的优先
 ;(async () => {
   if (typeof loadFromCloud !== 'function') return
   try {
     const cloudData = await loadFromCloud()
     if (!cloudData) {
-      // 云端无数据，把本地推上去
+      // 云端无数据 → 把本地推上去
       if (typeof saveToCloud === 'function') saveToCloud().catch(()=>{})
     } else {
-      const localTs  = S.updated_at  ? new Date(S.updated_at).getTime()  : 0
-      const cloudTs  = cloudData.updated_at ? new Date(cloudData.updated_at).getTime() : 0
-      if (cloudTs > localTs) {
-        // 云端更新 → 用云端
-        Object.assign(S, cloudData)
-        localStorage.setItem('ft_v1', JSON.stringify(cloudData))
-        render()
-        showToast('已从云端同步 ✓')
-      } else if (localTs > cloudTs) {
-        // 本地更新 → 推到云端
-        if (typeof saveToCloud === 'function') saveToCloud().catch(()=>{})
-        showToast('本地数据已推送至云端 ✓')
+      const localTs = S.updated_at ? new Date(S.updated_at).getTime() : 0
+      const cloudTs = cloudData.updated_at ? new Date(cloudData.updated_at).getTime() : 0
+
+      // 合并 logs：取并集，同一天以「updated_at 较新的来源」整体优先
+      const mergedLogs = { ...(cloudData.logs || {}) }
+      for (const [date, localLog] of Object.entries(S.logs || {})) {
+        if (!mergedLogs[date]) {
+          mergedLogs[date] = localLog
+        } else {
+          // 同一天：本地比云端新则用本地，否则用云端
+          mergedLogs[date] = localTs >= cloudTs ? localLog : mergedLogs[date]
+        }
       }
-      // 相等：无需操作
+
+      // 合并 weights（去重，按 date 合并）
+      const wMap = {}
+      for (const w of [...(cloudData.weights||[]), ...(S.weights||[])]) wMap[w.date] = w
+      const mergedWeights = Object.values(wMap).sort((a,b) => a.date.localeCompare(b.date))
+
+      // 取较新的 updated_at
+      const mergedTs = cloudTs > localTs ? cloudData.updated_at : (S.updated_at || cloudData.updated_at)
+
+      const merged = { ...cloudData, ...( localTs >= cloudTs ? S : cloudData ),
+        logs: mergedLogs, weights: mergedWeights, updated_at: mergedTs }
+      delete merged.selected; delete merged.viewDate; delete merged.meta
+
+      Object.assign(S, merged)
+      localStorage.setItem('ft_v1', JSON.stringify(merged))
+      render()
+      showToast('已同步云端 ✓')
+
+      // 如果本地比云端新，顺手推一次
+      if (localTs > cloudTs && typeof saveToCloud === 'function') saveToCloud().catch(()=>{})
     }
   } catch(e) {
     console.warn('云端加载失败:', e)
