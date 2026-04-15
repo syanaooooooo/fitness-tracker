@@ -46,6 +46,11 @@ function load() {
     const raw = localStorage.getItem('ft_v1')
     if (raw) Object.assign(S, JSON.parse(raw))
   } catch(_) {}
+  // 恢复上次停留的 tab（单独存，不混入云端数据）
+  try {
+    const ui = JSON.parse(localStorage.getItem('ft_ui') || '{}')
+    if (ui.tab) S.tab = ui.tab
+  } catch(_) {}
 }
 
 // ============================================================
@@ -699,6 +704,7 @@ function bindEvents() {
     btn.addEventListener('click', () => {
       S.tab = btn.dataset.tab; S.selected = null
       if (btn.dataset.tab !== 'today') S.viewDate = null  // 离开今日tab时重置到今天
+      localStorage.setItem('ft_ui', JSON.stringify({tab: S.tab}))
       render()
     })
   )
