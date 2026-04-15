@@ -1051,14 +1051,18 @@ async function bindCloud() {
     const slots    = [1,2,3].map(n => snaps.find(s => s.name === `ft_slot_${n}`) || null)
     const autos    = snaps.filter(s => s.name.startsWith('ft_auto_')).slice(0,3)
     const restores = snaps.filter(s => s.name.startsWith('ft_pre_restore_')).slice(0,3)
-    const newestId = snaps[0]?.id
+    // 各 section 独立计算最新 ID
+    const newestSlotId    = slots.filter(Boolean).sort((a,b) => a.created_at < b.created_at ? 1 : -1)[0]?.id
+    const newestAutoId    = autos[0]?.id
+    const newestRestoreId = restores[0]?.id
 
     const slotHtml = slots.map((s, i) => `
       <div class="cs-slot">
         <div class="cs-slot-info">
           <span class="cs-slot-name">存档 ${i+1}</span>
-          ${s ? `<span class="cs-slot-time">${fmtSnapshotTime(s.created_at)}${s.id===newestId?' <span class="cs-badge">最新</span>':''}</span>
-                 <span class="cs-slot-meta">${s.data?.meta?.log_count||0} 条记录</span>` : '<span class="cs-slot-empty">（空）</span>'}
+          ${s ? `<span class="cs-slot-time">${fmtSnapshotTime(s.created_at)}</span>
+                 <span class="cs-slot-meta">${s.data?.meta?.log_count||0} 条</span>
+                 ${s.id===newestSlotId?'<span class="cs-badge">最新</span>':''}` : '<span class="cs-slot-empty">（空）</span>'}
         </div>
         <div class="cs-slot-btns">
           <button class="cs-btn cs-btn-cover" data-slot="${i+1}">覆盖</button>
@@ -1067,19 +1071,21 @@ async function bindCloud() {
       </div>`).join('')
 
     const autoHtml = autos.length ? autos.map(s => `
-      <div class="cs-slot cs-slot-auto">
+      <div class="cs-slot">
         <div class="cs-slot-info">
-          <span class="cs-slot-time">${fmtSnapshotTime(s.created_at)}${s.id===newestId?' <span class="cs-badge">最新</span>':''}</span>
-          <span class="cs-slot-meta">${s.data?.meta?.log_count||0} 条记录</span>
+          <span class="cs-slot-time">${fmtSnapshotTime(s.created_at)}</span>
+          <span class="cs-slot-meta">${s.data?.meta?.log_count||0} 条</span>
+          ${s.id===newestAutoId?'<span class="cs-badge">最新</span>':''}
         </div>
         <button class="cs-btn cs-btn-restore" data-id="${s.id}">恢复</button>
       </div>`).join('') : '<div class="cs-empty">暂无自动快照</div>'
 
     const restoreHtml = restores.length ? restores.map(s => `
-      <div class="cs-slot cs-slot-auto">
+      <div class="cs-slot">
         <div class="cs-slot-info">
           <span class="cs-slot-time">${fmtSnapshotTime(s.created_at)}</span>
-          <span class="cs-slot-meta">${s.data?.meta?.log_count||0} 条记录</span>
+          <span class="cs-slot-meta">${s.data?.meta?.log_count||0} 条</span>
+          ${s.id===newestRestoreId?'<span class="cs-badge">最新</span>':''}
         </div>
         <button class="cs-btn cs-btn-restore" data-id="${s.id}">恢复</button>
       </div>`).join('') : ''

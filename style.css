@@ -807,58 +807,62 @@ body {
   font-family: -apple-system, 'PingFang SC', sans-serif;
 }
 .cs-section {
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 }
 .cs-section:last-child { margin-bottom: 0; }
 .cs-label {
-  font-size: 16px;
+  font-size: 15px;
   color: var(--ink-mid);
   letter-spacing: 0.05em;
-  margin-bottom: 10px;
-  padding-bottom: 6px;
+  margin-bottom: 4px;
+  padding-bottom: 4px;
   border-bottom: 1px solid var(--border-light);
   font-family: -apple-system, 'PingFang SC', sans-serif;
 }
 .cs-hint {
   color: var(--ink-light);
   font-weight: 400;
+  font-size: 13px;
   margin-left: 4px;
 }
 .cs-slot {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 9px 0;
+  gap: 8px;
+  padding: 5px 0;
   border-bottom: 1px solid var(--bg2);
 }
 .cs-slot:last-child { border-bottom: none; }
-.cs-slot-auto { align-items: center; }
 .cs-slot-info {
   display: flex;
-  flex-direction: column;
-  gap: 1px;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
   flex: 1;
   min-width: 0;
 }
 .cs-slot-name {
-  font-size: 16px;
+  font-size: 14px;
   color: var(--ink-light);
   letter-spacing: 0.04em;
+  flex-shrink: 0;
   font-family: -apple-system, 'PingFang SC', sans-serif;
 }
 .cs-slot-time {
-  font-size: 18px;
+  font-size: 15px;
   color: var(--ink-mid);
+  flex-shrink: 0;
   font-family: -apple-system, 'PingFang SC', sans-serif;
 }
 .cs-slot-meta {
-  font-size: 16px;
+  font-size: 13px;
   color: var(--ink-light);
+  flex-shrink: 0;
   font-family: -apple-system, 'PingFang SC', sans-serif;
 }
 .cs-slot-empty {
-  font-size: 17px;
+  font-size: 14px;
   color: var(--ink-light);
   font-family: -apple-system, 'PingFang SC', sans-serif;
 }
