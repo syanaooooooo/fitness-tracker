@@ -766,17 +766,36 @@ function bindWeek() {
 function bindToday() {
   const date = S.viewDate || todayStr()
 
+  // 把当前 DOM 里未保存的输入值刷入 S，防止按钮触发 render() 时输入框被清空
+  function flushInputs() {
+    const log = getLog(date)
+    const dur = document.getElementById('duration')
+    const cal = document.getElementById('calories')
+    const txt = document.getElementById('notes')
+    const fn  = document.getElementById('freeNote')
+    if (dur && dur.value !== '') log.duration = parseInt(dur.value) || 0
+    if (cal && cal.value !== '') log.calories = parseInt(cal.value) || 0
+    if (txt) log.notes = txt.value
+    if (fn)  log.freeNote = fn.value
+    document.querySelectorAll('.meal-num').forEach(inp => {
+      log[inp.dataset.meal] = parseInt(inp.value) || 0
+    })
+    document.querySelectorAll('.meal-text').forEach(inp => {
+      log[inp.dataset.mealText] = inp.value
+    })
+  }
+
   // Done buttons
   document.querySelectorAll('.done-btn').forEach(btn =>
     btn.addEventListener('click', () => {
-      getLog(date).done = btn.dataset.done; save(); render()
+      flushInputs(); getLog(date).done = btn.dataset.done; save(); render()
     })
   )
 
   // Feel buttons
   document.querySelectorAll('.feel-btn').forEach(btn =>
     btn.addEventListener('click', () => {
-      getLog(date).feel = btn.dataset.feel; save(); render()
+      flushInputs(); getLog(date).feel = btn.dataset.feel; save(); render()
     })
   )
 
@@ -823,7 +842,7 @@ function bindToday() {
   // Energy buttons
   document.querySelectorAll('.energy-btn').forEach(btn =>
     btn.addEventListener('click', () => {
-      getLog(date).energy = parseInt(btn.dataset.energy); save(); render()
+      flushInputs(); getLog(date).energy = parseInt(btn.dataset.energy); save(); render()
     })
   )
 
@@ -886,21 +905,7 @@ function bindToday() {
   const saveBtn = document.getElementById('saveBtn')
   if (saveBtn) {
     saveBtn.addEventListener('click', () => {
-      const log = getLog(date)
-      const dur = document.getElementById('duration')
-      const txt = document.getElementById('notes')
-      document.querySelectorAll('.meal-num').forEach(inp => {
-        log[inp.dataset.meal] = parseInt(inp.value) || 0
-      })
-      document.querySelectorAll('.meal-text').forEach(inp => {
-        log[inp.dataset.mealText] = inp.value
-      })
-      if (dur) log.duration = parseInt(dur.value) || 0
-      const cal = document.getElementById('calories')
-      if (cal) log.calories = parseInt(cal.value) || 0
-      if (txt) log.notes = txt.value
-      const fn = document.getElementById('freeNote')
-      if (fn) log.freeNote = fn.value
+      flushInputs()
 
       // 更新每餐计算状态
       ;[['b','pb'],['l','pl'],['d','pd'],['s','ps']].forEach(([slot, prefix]) => {
