@@ -18,10 +18,15 @@ async function saveToCloud() {
   const raw = localStorage.getItem('ft_v1')
   if (!raw) return
   const payload = JSON.parse(raw)
-  // upsert：行存在则更新，不存在则插入，避免 update 静默失败
-  const { error } = await window.sbClient
-    .from('snapshots').upsert({ name: 'ft_main', data: payload }, { onConflict: 'name' })
-  if (error) console.warn('云端保存失败:', error.message)
+  // update 并检查是否真的影响了行；影响 0 行说明记录不存在，改 insert
+  const { data: updated, error: ue } = await window.sbClient
+    .from('snapshots').update({ data: payload }).eq('name', 'ft_main').select('name')
+  if (ue) { console.warn('云端更新失败:', ue.message); return }
+  if (!updated || updated.length === 0) {
+    const { error: ie } = await window.sbClient
+      .from('snapshots').insert({ name: 'ft_main', data: payload })
+    if (ie) console.warn('云端插入失败:', ie.message)
+  }
 }
 
 // ─── 快照：构建数据包 ──────────────────────────────────────────

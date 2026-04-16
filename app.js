@@ -35,6 +35,7 @@ let S = {
 function save() {
   const { selected, viewDate, ...data } = S
   data.updated_at = new Date().toISOString()
+  S.updated_at = data.updated_at          // 同步更新内存，保证 sync 比较时不用 stale 值
   localStorage.setItem('ft_v1', JSON.stringify(data))
   if (typeof saveToCloud === 'function') {
     saveToCloud().catch(e => console.warn('云端同步失败:', e))
@@ -912,6 +913,7 @@ function bindToday() {
   if (saveBtn) {
     saveBtn.addEventListener('click', () => {
       flushInputs()
+      const log = getLog(date)   // flushInputs 已把 DOM 值写入 S，这里取引用用于 status 更新
 
       // 更新每餐计算状态
       ;[['b','pb'],['l','pl'],['d','pd'],['s','ps']].forEach(([slot, prefix]) => {
@@ -1179,21 +1181,24 @@ function showToast(msg) {
 load()   // 先从 localStorage 同步加载，保证 UI 立刻可用
 render()
 
-// 字段级 merge：两个 day log 合并，非空/非零优先，status 以 done>stale>pending>null 优先
+// 字段级 merge：两个 day log 合并
+// 规则：非空优先；两边都有值时：status 取高 rank，text/notes 取 cloud（更新的来源），数值取 cloud
 function mergeDayLog(local, cloud) {
   const STATUS_RANK = { done: 3, stale: 2, pending: 1 }
   const result = { ...cloud }
   for (const key of Object.keys(local)) {
     const lv = local[key], cv = cloud[key]
+    // 本地为空/零 → 不覆盖云端
     if (lv === null || lv === undefined || lv === '' || lv === 0) continue
+    // 云端为空/零 → 用本地填补
     if (cv === null || cv === undefined || cv === '' || cv === 0) { result[key] = lv; continue }
-    // 两边都有值
+    // 两边都有值：
     if (key.endsWith('_status')) {
-      result[key] = (STATUS_RANK[lv] || 0) >= (STATUS_RANK[cv] || 0) ? lv : cv
-    } else if (key.endsWith('_text') || key === 'notes') {
-      result[key] = String(lv).length >= String(cv).length ? lv : cv
+      // status 取更高 rank（done > stale > pending）
+      result[key] = (STATUS_RANK[lv] || 0) > (STATUS_RANK[cv] || 0) ? lv : cv
     }
-    // 数值、detail 等字段：保留 cloud（cloud 是更完整的来源）
+    // _text / notes / _detail / 数值：云端优先（cloud = 明确的 pull 来源，不用本地覆盖）
+    // result[key] 已经是 cv，无需修改
   }
   return result
 }
