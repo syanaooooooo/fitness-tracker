@@ -18,15 +18,10 @@ async function saveToCloud() {
   const raw = localStorage.getItem('ft_v1')
   if (!raw) return
   const payload = JSON.parse(raw)
-  // 直接 update；不存在则 insert（两步均尝试）
-  const { error: ue } = await window.sbClient
-    .from('snapshots').update({ data: payload }).eq('name', 'ft_main')
-  if (ue) {
-    // update 失败说明行不存在，改 insert
-    const { error: ie } = await window.sbClient
-      .from('snapshots').insert({ name: 'ft_main', data: payload })
-    if (ie) console.warn('云端保存失败:', ie.message)
-  }
+  // upsert：行存在则更新，不存在则插入，避免 update 静默失败
+  const { error } = await window.sbClient
+    .from('snapshots').upsert({ name: 'ft_main', data: payload }, { onConflict: 'name' })
+  if (error) console.warn('云端保存失败:', error.message)
 }
 
 // ─── 快照：构建数据包 ──────────────────────────────────────────

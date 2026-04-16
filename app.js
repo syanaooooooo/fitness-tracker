@@ -1243,3 +1243,35 @@ function mergeDayLog(local, cloud) {
     autoSnapshot().catch(e => console.warn('自动快照失败:', e))
   }
 })()
+
+// 切回 tab 时自动同步云端（防止手机/其他设备修改后桌面看不到）
+let _lastSyncTime = Date.now()
+document.addEventListener('visibilitychange', async () => {
+  if (document.hidden) return
+  if (typeof loadFromCloud !== 'function') return
+  const now = Date.now()
+  if (now - _lastSyncTime < 30000) return  // 30秒内不重复拉
+  _lastSyncTime = now
+  try {
+    const cloudData = await loadFromCloud()
+    if (!cloudData) return
+    const cloudTs = cloudData.updated_at ? new Date(cloudData.updated_at).getTime() : 0
+    const localTs  = S.updated_at ? new Date(S.updated_at).getTime() : 0
+    if (cloudTs <= localTs) return  // 云端没有更新，不需要合并
+    const mergedLogs = { ...(cloudData.logs || {}) }
+    for (const [date, localLog] of Object.entries(S.logs || {})) {
+      mergedLogs[date] = mergedLogs[date] ? mergeDayLog(localLog, mergedLogs[date]) : localLog
+    }
+    const wMap = {}
+    for (const w of [...(cloudData.weights||[]), ...(S.weights||[])]) wMap[w.date] = w
+    const merged = { ...cloudData, logs: mergedLogs,
+      weights: Object.values(wMap).sort((a,b) => a.date.localeCompare(b.date)) }
+    delete merged.selected; delete merged.viewDate; delete merged.meta
+    Object.assign(S, merged)
+    localStorage.setItem('ft_v1', JSON.stringify(merged))
+    render()
+    showToast('已同步云端 ✓')
+  } catch(e) {
+    console.warn('切回同步失败:', e)
+  }
+})
