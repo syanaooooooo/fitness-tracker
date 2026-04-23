@@ -479,103 +479,168 @@ function renderData() {
         </div>
       </div>
 
-      <div class="data-cols">
-        <div class="card">
-          <div class="card-label">体重 kg</div>
-          <div class="input-row">
-            <input id="weightInput" type="number" placeholder="今日体重" step="0.1" min="30" max="200">
+      <!-- 体重 + 围度输入并排 -->
+      <div class="card data-inputs-card">
+        <div class="data-inputs-row">
+          <div class="data-input-group">
+            <span class="dil">体重</span>
+            <input id="weightInput" type="number" placeholder="kg" step="0.1" min="30" max="200">
             <button id="addWeight">记录</button>
           </div>
-          ${renderWeightChart()}
-        </div>
-
-        <div class="card card-measure">
-          <div class="card-label">围度 <span class="card-label-unit">cm</span></div>
-          <div class="input-row input-row-compact">
-            <input id="waistInput" type="number" placeholder="腰" step="0.5">
-            <input id="hipInput"   type="number" placeholder="臀" step="0.5">
+          <div class="data-input-sep"></div>
+          <div class="data-input-group">
+            <span class="dil">围度</span>
+            <input id="waistInput" type="number" placeholder="腰 cm" step="0.5">
+            <input id="hipInput"   type="number" placeholder="臀 cm" step="0.5">
             <button id="addMeasure">记录</button>
           </div>
-          ${renderMeasureTable()}
         </div>
       </div>
 
-      <div class="card backup-card">
-        <div class="card-label">本地备份</div>
-        <div class="backup-row">
-          <button id="exportBtn" class="backup-btn">导出 JSON</button>
-          <label class="backup-btn import-label" for="importFile">导入 JSON</label>
-          <input type="file" id="importFile" accept=".json" style="display:none">
-        </div>
-        <p class="backup-hint">导入会覆盖当前所有数据，建议先导出备份</p>
+      <!-- 综合折线图 + 体重统计 -->
+      <div class="card">
+        ${renderCombinedChart()}
+        ${renderWeightStats()}
       </div>
 
+      <!-- 围度历史（有数据才显示） -->
+      ${S.measures.length ? `<div class="card"><div class="card-label" style="margin-bottom:8px">围度记录</div>${renderMeasureTable()}</div>` : ''}
+
+      <!-- 云端存档（含本地备份按钮） -->
       <div class="card cloud-card">
-        <div class="card-label">云端存档</div>
-        <div class="cs-sync-bar">
+        <div class="cloud-card-hdr">
+          <div class="card-label" style="margin:0">云端存档</div>
+          <div class="cloud-hdr-actions">
+            <button id="exportBtn" class="cs-btn-sm">↓ 导出</button>
+            <label class="cs-btn-sm import-label" for="importFile" style="cursor:pointer">↑ 导入</label>
+            <input type="file" id="importFile" accept=".json" style="display:none">
+            <button id="forcePullBtn" class="cs-btn cs-btn-pull">强制拉取</button>
+          </div>
+        </div>
+        <div class="cs-sync-bar" style="margin-top:6px">
           <span id="syncStatus" class="cs-sync-status"></span>
-          <button id="forcePullBtn" class="cs-btn cs-btn-pull">强制拉取云端</button>
         </div>
         <div id="cloudSlots"><div class="cloud-loading">加载中…</div></div>
       </div>
     </div>`
 }
 
-function renderWeightChart() {
-  if (!S.weights.length) return '<div class="empty-state">开始记录体重，看到趋势变化</div>'
-  const sorted = [...S.weights].sort((a,b)=>a.date.localeCompare(b.date)).slice(-20)
-  const vals = sorted.map(w=>w.v)
-  const lo = Math.min(...vals) - 0.3, hi = Math.max(...vals) + 0.3
-  const CW = 400, CH = 130
-  const pts = sorted.map((w,i) => {
-    const x = sorted.length<2 ? CW/2 : (i/(sorted.length-1))*CW
-    const y = CH - ((w.v-lo)/(hi-lo))*CH
-    return `${x.toFixed(1)},${y.toFixed(1)}`
-  }).join(' ')
-  const circles = sorted.map((w,i) => {
-    const x = sorted.length<2 ? CW/2 : (i/(sorted.length-1))*CW
-    const y = CH - ((w.v-lo)/(hi-lo))*CH
-    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.5" fill="var(--accent)"/>`
-  }).join('')
-  const first = sorted[0], last = sorted[sorted.length-1]
+// 三线综合折线图（体重 + 腰围 + 臀围），共享 X 时间轴，各自 Y 轴归一化
+function renderCombinedChart() {
+  const weights  = [...S.weights].sort((a,b)  => a.date.localeCompare(b.date)).slice(-20)
+  const measures = [...S.measures].sort((a,b) => a.date.localeCompare(b.date)).slice(-20)
+  const waists   = measures.map(m => ({ date: m.date, v: m.waist }))
+  const hips     = measures.map(m => ({ date: m.date, v: m.hip }))
+  const hasW = weights.length >= 1, hasM = measures.length >= 1
+  if (!hasW && !hasM) return '<div class="empty-state">记录体重或围度后查看趋势</div>'
 
-  // 计算下降速度
-  let statsHtml = ''
-  if (sorted.length >= 2) {
-    const daysDiff = (new Date(last.date) - new Date(first.date)) / 86400000
-    const totalChange = first.v - last.v   // 正数 = 下降
-    const weeklyRate = daysDiff > 0 ? (totalChange / daysDiff * 7) : 0
-    const toGoal = last.v - S.targetWeight
-    const changeSign = totalChange >= 0 ? '↓' : '↑'
-    const rateColor = weeklyRate >= 0.3 && weeklyRate <= 1.2 ? 'var(--accent)' : '#c0392b'
-    const etaWeeks = weeklyRate > 0 ? (toGoal / weeklyRate).toFixed(1) : '—'
-    statsHtml = `
-      <div class="weight-stats">
-        <div class="wstat">
-          <span class="wstat-val">${changeSign}${Math.abs(totalChange).toFixed(1)} kg</span>
-          <span class="wstat-label">共下降（${Math.round(daysDiff)}天）</span>
-        </div>
-        <div class="wstat">
-          <span class="wstat-val" style="color:${rateColor}">${weeklyRate >= 0 ? weeklyRate.toFixed(2) : '+'+(Math.abs(weeklyRate)).toFixed(2)} kg/周</span>
-          <span class="wstat-label">平均每周（建议 0.5–1.0）</span>
-        </div>
-        <div class="wstat">
-          <span class="wstat-val">${toGoal > 0 ? toGoal.toFixed(1)+' kg' : '已达标 🎉'}</span>
-          <span class="wstat-label">距目标 ${S.targetWeight} kg${toGoal > 0 && weeklyRate > 0 ? '（约'+etaWeeks+'周）' : ''}</span>
-        </div>
-      </div>`
+  const CW = 500, CH = 140, PAD = 0.07   // 上下各留 7% 内边距
+
+  // 共享 X 轴（时间）
+  const allDates = [...weights.map(w => w.date), ...measures.map(m => m.date)].sort()
+  const minD = new Date(allDates[0]), maxD = new Date(allDates[allDates.length - 1])
+  const spanMs = Math.max(86400000, maxD - minD)
+  const toX = d => ((new Date(d) - minD) / spanMs) * CW
+
+  // 单条线：独立 Y 轴归一化（各自 lo-hi 占满高度，留 PAD 内边距）
+  function buildSeries(data, color) {
+    if (!data.length) return null
+    const vals = data.map(d => d.v)
+    const lo = Math.min(...vals), hi = Math.max(...vals), range = (hi - lo) || 0.01
+    const toY = v => CH * PAD + (1 - (v - lo) / range) * CH * (1 - PAD * 2)
+    const pts  = data.map(d => `${toX(d.date).toFixed(1)},${toY(d.v).toFixed(1)}`).join(' ')
+    const dots = data.map(d =>
+      `<circle cx="${toX(d.date).toFixed(1)}" cy="${toY(d.v).toFixed(1)}" r="3" fill="${color}"/>`
+    ).join('')
+    return {
+      poly: `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`,
+      dots, lo, hi, first: data[0], last: data[data.length - 1]
+    }
   }
 
+  const C = { w: 'var(--accent)', wa: '#b07040', h: '#7a5c8a' }
+  const wS = buildSeries(weights, C.w)
+  const waS = buildSeries(waists, C.wa)
+  const hS  = buildSeries(hips, C.h)
+
+  // Legend：● 体重 74.7kg ↓1.3  ● 腰围 80cm  ● 臀围 95cm
+  function lgItem(s, label, unit, dec, color) {
+    if (!s) return ''
+    const cur  = s.last.v.toFixed(dec)
+    const diff = s.last.v - s.first.v
+    const dStr = Math.abs(diff) >= 0.05
+      ? ` <span style="color:${diff < 0 ? color : '#c0392b'}">${diff < 0 ? '↓' : '↑'}${Math.abs(diff).toFixed(dec)}</span>`
+      : ''
+    return `<span class="ch-lg-item">
+      <span class="ch-lg-dot" style="background:${color}"></span>
+      ${label}&thinsp;<b>${cur}${unit}</b>${dStr}
+    </span>`
+  }
+  const legend = [lgItem(wS,'体重','kg',1,C.w), lgItem(waS,'腰围','cm',0,C.wa), lgItem(hS,'臀围','cm',0,C.h)]
+    .filter(Boolean).join('')
+
+  // 网格线
+  const grid = [0.15, 0.5, 0.85].map(t =>
+    `<line x1="0" y1="${(CH*t).toFixed(1)}" x2="${CW}" y2="${(CH*t).toFixed(1)}" stroke="var(--bg2)" stroke-width="1"/>`
+  ).join('')
+
+  // Y 轴标尺（仅体重，左侧）— 用 HTML 避免 SVG 文字在 preserveAspectRatio:none 下变形
+  const yAxisHtml = wS ? `
+    <div class="ch-yaxis">
+      <span>${wS.hi.toFixed(1)}</span>
+      <span>${((wS.hi+wS.lo)/2).toFixed(1)}</span>
+      <span>${wS.lo.toFixed(1)}</span>
+    </div>` : '<div class="ch-yaxis"></div>'
+
+  // X 轴日期
+  const xAxis = allDates.length >= 2 && spanMs > 86400000 ? `
+    <div class="ch-xaxis">
+      <span>${fmtDate(allDates[0])}</span>
+      <span>${fmtDate(allDates[allDates.length-1])}</span>
+    </div>` : ''
+
   return `
-    <div class="weight-chart">
-      <svg viewBox="0 0 ${CW} ${CH}" preserveAspectRatio="none">
-        <polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2"
-          stroke-linecap="round" stroke-linejoin="round"/>
-        ${circles}
-      </svg>
-      <div class="weight-latest">最新：${last.v} kg · ${fmtDate(last.date)}</div>
-    </div>
-    ${statsHtml}`
+    <div class="combined-chart">
+      <div class="ch-legend">${legend}</div>
+      <div class="ch-body">
+        ${yAxisHtml}
+        <svg viewBox="0 0 ${CW} ${CH}" preserveAspectRatio="none">
+          ${grid}
+          ${[wS,waS,hS].filter(Boolean).map(s=>s.poly).join('')}
+          ${[wS,waS,hS].filter(Boolean).map(s=>s.dots).join('')}
+        </svg>
+      </div>
+      ${xAxis}
+    </div>`
+}
+
+// 体重下降速度统计（体重 ≥2 条才显示）
+function renderWeightStats() {
+  if (S.weights.length < 2) return ''
+  const sorted = [...S.weights].sort((a,b) => a.date.localeCompare(b.date))
+  const first = sorted[0], last = sorted[sorted.length-1]
+  const daysDiff   = (new Date(last.date) - new Date(first.date)) / 86400000
+  const totalChange = first.v - last.v
+  const weeklyRate  = daysDiff > 0 ? (totalChange / daysDiff * 7) : 0
+  const toGoal      = last.v - S.targetWeight
+  const changeSign  = totalChange >= 0 ? '↓' : '↑'
+  const rateColor   = weeklyRate >= 0.3 && weeklyRate <= 1.2 ? 'var(--accent)' : '#c0392b'
+  const etaWeeks    = weeklyRate > 0 ? (toGoal / weeklyRate).toFixed(1) : '—'
+  return `
+    <div class="weight-stats">
+      <div class="wstat">
+        <span class="wstat-val">${changeSign}${Math.abs(totalChange).toFixed(1)} kg</span>
+        <span class="wstat-label">共下降（${Math.round(daysDiff)}天）</span>
+      </div>
+      <div class="wstat">
+        <span class="wstat-val" style="color:${rateColor}">${weeklyRate >= 0 ? weeklyRate.toFixed(2) : '+'+Math.abs(weeklyRate).toFixed(2)} kg/周</span>
+        <span class="wstat-label">平均每周（建议 0.5–1.0）</span>
+      </div>
+      <div class="wstat">
+        <span class="wstat-val">${toGoal > 0 ? toGoal.toFixed(1)+' kg' : '已达标 🎉'}</span>
+        <span class="wstat-label">距目标 ${S.targetWeight} kg${toGoal > 0 && weeklyRate > 0 ? '（约'+etaWeeks+'周）' : ''}</span>
+      </div>
+    </div>`
 }
 
 function renderMeasureTable() {

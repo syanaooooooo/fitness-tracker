@@ -5,6 +5,7 @@
       "name": "fitness-tracker",
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "8890"],
+      "cwd": "fitness-tracker",
       "port": 8890
     }
   ]
