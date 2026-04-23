@@ -489,11 +489,11 @@ function renderData() {
           ${renderWeightChart()}
         </div>
 
-        <div class="card">
-          <div class="card-label">围度 cm</div>
-          <div class="input-row">
-            <input id="waistInput" type="number" placeholder="腰围" step="0.5">
-            <input id="hipInput"   type="number" placeholder="臀围" step="0.5">
+        <div class="card card-measure">
+          <div class="card-label">围度 <span class="card-label-unit">cm</span></div>
+          <div class="input-row input-row-compact">
+            <input id="waistInput" type="number" placeholder="腰" step="0.5">
+            <input id="hipInput"   type="number" placeholder="臀" step="0.5">
             <button id="addMeasure">记录</button>
           </div>
           ${renderMeasureTable()}
@@ -523,10 +523,10 @@ function renderData() {
 
 function renderWeightChart() {
   if (!S.weights.length) return '<div class="empty-state">开始记录体重，看到趋势变化</div>'
-  const sorted = [...S.weights].sort((a,b)=>a.date.localeCompare(b.date)).slice(-16)
+  const sorted = [...S.weights].sort((a,b)=>a.date.localeCompare(b.date)).slice(-20)
   const vals = sorted.map(w=>w.v)
-  const lo = Math.min(...vals) - 0.5, hi = Math.max(...vals) + 0.5
-  const CW = 300, CH = 90
+  const lo = Math.min(...vals) - 0.3, hi = Math.max(...vals) + 0.3
+  const CW = 400, CH = 130
   const pts = sorted.map((w,i) => {
     const x = sorted.length<2 ? CW/2 : (i/(sorted.length-1))*CW
     const y = CH - ((w.v-lo)/(hi-lo))*CH
@@ -535,9 +535,37 @@ function renderWeightChart() {
   const circles = sorted.map((w,i) => {
     const x = sorted.length<2 ? CW/2 : (i/(sorted.length-1))*CW
     const y = CH - ((w.v-lo)/(hi-lo))*CH
-    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="var(--accent)"/>`
+    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.5" fill="var(--accent)"/>`
   }).join('')
-  const last = sorted[sorted.length-1]
+  const first = sorted[0], last = sorted[sorted.length-1]
+
+  // 计算下降速度
+  let statsHtml = ''
+  if (sorted.length >= 2) {
+    const daysDiff = (new Date(last.date) - new Date(first.date)) / 86400000
+    const totalChange = first.v - last.v   // 正数 = 下降
+    const weeklyRate = daysDiff > 0 ? (totalChange / daysDiff * 7) : 0
+    const toGoal = last.v - S.targetWeight
+    const changeSign = totalChange >= 0 ? '↓' : '↑'
+    const rateColor = weeklyRate >= 0.3 && weeklyRate <= 1.2 ? 'var(--accent)' : '#c0392b'
+    const etaWeeks = weeklyRate > 0 ? (toGoal / weeklyRate).toFixed(1) : '—'
+    statsHtml = `
+      <div class="weight-stats">
+        <div class="wstat">
+          <span class="wstat-val">${changeSign}${Math.abs(totalChange).toFixed(1)} kg</span>
+          <span class="wstat-label">共下降（${Math.round(daysDiff)}天）</span>
+        </div>
+        <div class="wstat">
+          <span class="wstat-val" style="color:${rateColor}">${weeklyRate >= 0 ? weeklyRate.toFixed(2) : '+'+(Math.abs(weeklyRate)).toFixed(2)} kg/周</span>
+          <span class="wstat-label">平均每周（建议 0.5–1.0）</span>
+        </div>
+        <div class="wstat">
+          <span class="wstat-val">${toGoal > 0 ? toGoal.toFixed(1)+' kg' : '已达标 🎉'}</span>
+          <span class="wstat-label">距目标 ${S.targetWeight} kg${toGoal > 0 && weeklyRate > 0 ? '（约'+etaWeeks+'周）' : ''}</span>
+        </div>
+      </div>`
+  }
+
   return `
     <div class="weight-chart">
       <svg viewBox="0 0 ${CW} ${CH}" preserveAspectRatio="none">
@@ -546,7 +574,8 @@ function renderWeightChart() {
         ${circles}
       </svg>
       <div class="weight-latest">最新：${last.v} kg · ${fmtDate(last.date)}</div>
-    </div>`
+    </div>
+    ${statsHtml}`
 }
 
 function renderMeasureTable() {
