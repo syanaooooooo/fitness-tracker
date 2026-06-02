@@ -619,18 +619,29 @@ function renderWeightStats() {
   if (S.weights.length < 2) return ''
   const sorted = [...S.weights].sort((a,b) => a.date.localeCompare(b.date))
   const first = sorted[0], last = sorted[sorted.length-1]
-  const daysDiff   = (new Date(last.date) - new Date(first.date)) / 86400000
+  const prev  = sorted[sorted.length-2]  // 上一条记录
+  const daysDiff    = (new Date(last.date) - new Date(first.date)) / 86400000
   const totalChange = first.v - last.v
   const weeklyRate  = daysDiff > 0 ? (totalChange / daysDiff * 7) : 0
   const toGoal      = last.v - S.targetWeight
   const changeSign  = totalChange >= 0 ? '↓' : '↑'
   const rateColor   = weeklyRate >= 0.3 && weeklyRate <= 1.2 ? 'var(--accent)' : '#c0392b'
   const etaWeeks    = weeklyRate > 0 ? (toGoal / weeklyRate).toFixed(1) : '—'
+
+  // 距上次记录变化
+  const recentDays   = (new Date(last.date) - new Date(prev.date)) / 86400000
+  const recentChange = last.v - prev.v   // 正 = 涨，负 = 降
+  const recentSign   = recentChange <= 0 ? '↓' : '↑'
+  const recentColor  = recentChange <= 0 ? 'var(--accent)' : '#c0392b'
+  const dailyChange  = recentDays > 0 ? recentChange / recentDays : 0
+  const dailySign    = dailyChange <= 0 ? '↓' : '↑'
+  const dailyColor   = dailyChange <= 0 ? 'var(--accent)' : '#c0392b'
+
   return `
     <div class="weight-stats">
       <div class="wstat">
         <span class="wstat-val">${changeSign}${Math.abs(totalChange).toFixed(1)} kg</span>
-        <span class="wstat-label">共下降（${Math.round(daysDiff)}天）</span>
+        <span class="wstat-label">共变化（${Math.round(daysDiff)}天）</span>
       </div>
       <div class="wstat">
         <span class="wstat-val" style="color:${rateColor}">${weeklyRate >= 0 ? weeklyRate.toFixed(2) : '+'+Math.abs(weeklyRate).toFixed(2)} kg/周</span>
@@ -639,6 +650,14 @@ function renderWeightStats() {
       <div class="wstat">
         <span class="wstat-val">${toGoal > 0 ? toGoal.toFixed(1)+' kg' : '已达标 🎉'}</span>
         <span class="wstat-label">距目标 ${S.targetWeight} kg${toGoal > 0 && weeklyRate > 0 ? '（约'+etaWeeks+'周）' : ''}</span>
+      </div>
+      <div class="wstat">
+        <span class="wstat-val" style="color:${recentColor}">${recentSign}${Math.abs(recentChange).toFixed(1)} kg</span>
+        <span class="wstat-label">距上次（${Math.round(recentDays)}天前 ${prev.v.toFixed(1)}kg）</span>
+      </div>
+      <div class="wstat">
+        <span class="wstat-val" style="color:${dailyColor}">${dailySign}${Math.abs(dailyChange).toFixed(2)} kg/天</span>
+        <span class="wstat-label">近期日均变化</span>
       </div>
     </div>`
 }

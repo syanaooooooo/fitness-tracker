@@ -1121,7 +1121,7 @@ textarea:focus { outline: none; border-color: var(--accent); }
 .weight-stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+  gap: 10px 8px;
   margin-top: 4px;
 }
 .wstat {
